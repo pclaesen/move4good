@@ -3,11 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../components/Header/Header';
 import './Charities.css';
-import { CharityFormPage } from '../components/CharityForm/CharityForm';
+import { CharityForm } from '../components/CharityForm/CharityForm';
 import StravaConnectButton from '../components/StravaConnectButton/StravaConnectButton';
 
 // Dummy data for charities
-const CHARITIES = [
+const INITIAL_CHARITIES = [
   { 
     id: 1, 
     name: 'Save the Children',
@@ -52,6 +52,8 @@ function useStravaConnected() {
 export default function Charities() {
   const [stravaConnected, setStravaConnected, loadingConnection] = useStravaConnected();
   const [selectedCharities, setSelectedCharities] = useState([]);
+  const [charities, setCharities] = useState(INITIAL_CHARITIES);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [user, setUser] = useState(null);
   const router = useRouter();
 
@@ -68,6 +70,13 @@ export default function Charities() {
     if (savedSelections) {
       setSelectedCharities(JSON.parse(savedSelections));
     }
+
+    // Load custom charities
+    const savedCharities = localStorage.getItem('custom_charities');
+    if (savedCharities) {
+      const customCharities = JSON.parse(savedCharities);
+      setCharities([...INITIAL_CHARITIES, ...customCharities]);
+    }
   }, []);
 
   useEffect(() => {
@@ -83,6 +92,25 @@ export default function Charities() {
         ? prev.filter((cid) => cid !== id)
         : [...prev, id]
     );
+  };
+
+  const handleAddCharity = (charityData) => {
+    const newId = Math.max(...charities.map(c => c.id)) + 1;
+    const newCharity = {
+      id: newId,
+      name: charityData.name,
+      description: charityData.description,
+      donationAddress: charityData.donationAddress
+    };
+    
+    const updatedCharities = [...charities, newCharity];
+    setCharities(updatedCharities);
+    
+    // Save custom charities to localStorage
+    const customCharities = updatedCharities.filter(c => !INITIAL_CHARITIES.find(ic => ic.id === c.id));
+    localStorage.setItem('custom_charities', JSON.stringify(customCharities));
+    
+    setShowAddForm(false);
   };
 
   if (loadingConnection) {
@@ -133,7 +161,7 @@ export default function Charities() {
           <div className="stat-card">
             <div className="stat-icon">🏃‍♂️</div>
             <div className="stat-info">
-              <span className="stat-number">{CHARITIES.length}</span>
+              <span className="stat-number">{charities.length}</span>
               <span className="stat-label">Available Charities</span>
             </div>
           </div>
@@ -157,11 +185,41 @@ export default function Charities() {
           </div>
         )}
 
+        {/* Add Charity Section */}
+        <div className="add-charity-section">
+          <div className="section-header">
+            <h2>Add New Charity</h2>
+            {!showAddForm && (
+              <button 
+                className="add-charity-btn"
+                onClick={() => setShowAddForm(true)}
+              >
+                Add Charity
+              </button>
+            )}
+          </div>
+          
+          {showAddForm && (
+            <div className="charity-form-container">
+              <CharityForm 
+                onSubmit={handleAddCharity}
+                submitLabel="Add Charity"
+              />
+              <button 
+                className="cancel-btn"
+                onClick={() => setShowAddForm(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Available Charities */}
         <div className="charities-section">
           <h2>Available Charities</h2>
           <div className="charities-list">
-            {CHARITIES.map((charity) => (
+            {charities.map((charity) => (
               <div key={charity.id} className="charity-card">
                 <div className="charity-header">
                   <div>
@@ -174,6 +232,16 @@ export default function Charities() {
                         lineHeight: '1.4'
                       }}>
                         {charity.description}
+                      </p>
+                    )}
+                    {charity.donationAddress && (
+                      <p style={{ 
+                        margin: '0.5rem 0 0 0', 
+                        color: '#888', 
+                        fontSize: '0.85rem',
+                        fontStyle: 'italic'
+                      }}>
+                        Donation Address: {charity.donationAddress}
                       </p>
                     )}
                   </div>
@@ -201,7 +269,7 @@ export default function Charities() {
             <div>
               <p>You're running for these amazing causes:</p>
               <div className="selected-charities-list">
-                {CHARITIES
+                {charities
                   .filter(c => selectedCharities.includes(c.id))
                   .map(c => c.name)
                   .join(', ')}
@@ -220,9 +288,6 @@ export default function Charities() {
               )}
             </div>
           )}
-          <div style={{ marginTop: '2rem' }}>
-            <CharityFormPage />
-          </div>
         </div>
       </div>
     </div>

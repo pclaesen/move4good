@@ -14,6 +14,20 @@
   gap: 1rem;
 }
 
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #fc4c02;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 .charities-header {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -26,12 +40,6 @@
   align-items: center;
 }
 
-.charities-title {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
 .charities-title h1 {
   margin: 0;
   font-size: 1.8rem;
@@ -39,9 +47,15 @@
 }
 
 .charities-title p {
-  margin: 0;
+  margin: 0.5rem 0 0 0;
   opacity: 0.9;
   font-size: 1rem;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem;
 }
 
 /* Stats Grid */
@@ -94,7 +108,95 @@
   font-size: 0.9rem;
 }
 
-/* Activities Section - renamed for charities */
+/* Strava Connect Section */
+.strava-connect-section {
+  background: white;
+  padding: 2rem;
+  border-radius: 15px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  text-align: center;
+  margin: 2rem 0;
+}
+
+.strava-connect-section h3 {
+  color: #333;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+.strava-connect-section p {
+  color: #666;
+  margin-bottom: 1.5rem;
+}
+
+/* Add Charity Section Styles */
+.add-charity-section {
+  margin: 3rem 0;
+  background: white;
+  padding: 2rem;
+  border-radius: 15px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.section-header h2 {
+  color: #333;
+  margin: 0;
+  font-size: 1.8rem;
+  flex-grow: 1;
+}
+
+.add-charity-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.add-charity-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.cancel-btn {
+  background: #6b7280;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-left: 1rem;
+  box-shadow: 0 4px 15px rgba(107, 114, 128, 0.3);
+}
+
+.cancel-btn:hover {
+  background: #4b5563;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(107, 114, 128, 0.4);
+}
+
+.charity-form-container {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* Charities Section */
 .charities-section {
   margin: 3rem 0;
 }
@@ -117,6 +219,9 @@
   border-radius: 12px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
   transition: box-shadow 0.3s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
 }
 
 .charity-card:hover {
@@ -124,22 +229,19 @@
 }
 
 .charity-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
+  flex-grow: 1;
 }
 
 .charity-header h3 {
-  margin: 0;
+  margin: 0 0 0.5rem 0;
   color: #333;
   font-size: 1.2rem;
 }
 
 .charity-selection {
+  margin-left: 1rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
 }
 
 .charity-selection label {
@@ -147,36 +249,12 @@
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
-  font-size: 1rem;
-  color: #333;
+  color: #666;
+  font-size: 0.9rem;
 }
 
 .charity-selection input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  border: 2px solid #ddd;
-  border-radius: 4px;
-  cursor: pointer;
-  appearance: none;
-  background: white;
-  position: relative;
-  transition: all 0.3s ease;
-}
-
-.charity-selection input[type="checkbox"]:checked {
-  background: #fc4c02;
-  border-color: #fc4c02;
-}
-
-.charity-selection input[type="checkbox"]:checked::after {
-  content: '✓';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: white;
-  font-size: 12px;
-  font-weight: bold;
+  transform: scale(1.2);
 }
 
 .charity-selection input[type="checkbox"]:disabled {
@@ -184,76 +262,41 @@
   cursor: not-allowed;
 }
 
-.charity-selection label:has(input:disabled) {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.no-charities {
-  text-align: center;
-  padding: 3rem;
-  color: #666;
-}
-
 /* Selected Charities Section */
 .selected-charities-section {
-  background: white;
-  padding: 3rem;
-  border-radius: 15px;
-  text-align: center;
   margin: 3rem 0;
+  background: white;
+  padding: 2rem;
+  border-radius: 15px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
 }
 
 .selected-charities-section h2 {
   color: #333;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
   font-size: 1.8rem;
 }
 
-.selected-charities-section p {
-  color: #666;
-  margin-bottom: 2rem;
-  font-size: 1.1rem;
-  line-height: 1.6;
-}
-
 .selected-charities-list {
-  color: #fc4c02;
-  font-weight: 600;
-  font-size: 1.1rem;
+  background: #f0f9ff;
+  padding: 1rem;
+  border-radius: 8px;
+  font-weight: 500;
+  color: #333;
+  margin: 1rem 0;
 }
 
 .no-selection {
-  color: #999;
-  font-style: italic;
-}
-
-/* Strava Connect Section */
-.strava-connect-section {
-  background: white;
-  padding: 2rem;
-  border-radius: 15px;
-  text-align: center;
-  margin: 2rem 0;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-  border: 2px dashed #e2e8f0;
-}
-
-.strava-connect-section h3 {
-  color: #333;
-  margin-bottom: 1rem;
-  font-size: 1.4rem;
-}
-
-.strava-connect-section p {
   color: #666;
-  margin-bottom: 1.5rem;
-  font-size: 1rem;
+  font-style: italic;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
+  .container {
+    padding: 0 1rem;
+  }
+  
   .header-content {
     flex-direction: column;
     gap: 1rem;
@@ -261,7 +304,6 @@
   }
   
   .charities-title {
-    flex-direction: column;
     text-align: center;
   }
   
@@ -269,14 +311,26 @@
     grid-template-columns: 1fr;
   }
   
-  .charity-header {
+  .section-header {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 1rem;
   }
   
+  .add-charity-btn,
+  .cancel-btn {
+    width: 100%;
+    margin-left: 0;
+  }
+  
+  .charity-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
   .charity-selection {
-    align-self: stretch;
+    margin-left: 0;
+    margin-top: 1rem;
     justify-content: flex-start;
   }
 }
