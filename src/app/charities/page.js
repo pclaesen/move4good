@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../components/Header/Header';
 import './Charities.css';
+import { CharityFormPage } from '../components/CharityForm/CharityForm';
 import StravaConnectButton from '../components/StravaConnectButton/StravaConnectButton';
 
 // Dummy data for charities
@@ -219,6 +220,9 @@ export default function Charities() {
               )}
             </div>
           )}
+          <div style={{ marginTop: '2rem' }}>
+            <CharityFormPage />
+          </div>
         </div>
       </div>
     </div>
