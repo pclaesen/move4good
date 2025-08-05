@@ -40,6 +40,11 @@ export default function Header() {
     }
   };
 
+ const handleCharitiesClick = (e) => {
+    e.preventDefault();
+    router.push('/charities');
+  };
+
   const handleNavClick = (e, target) => {
     e.preventDefault();
     if (pathname !== '/') {
@@ -101,6 +106,13 @@ export default function Header() {
               >
                 Dashboard
               </a>
+              <a 
+                href="/charities"
+                onClick={handleCharitiesClick}
+                className={pathname === '/charities' ? 'active' : ''}
+              >
+                Charities
+              </a>              
               <a 
                 href="#contact" 
                 onClick={(e) => handleNavClick(e, '#contact')}
