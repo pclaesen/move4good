@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🏃‍♂️ Run For Good
 
-## Getting Started
+**Run For Good** is a Next.js web app that lets you turn your running into real-world impact. Connect your **Strava** account, choose your favorite **charities**, and automatically collect or pledge donations based on your running activity.
 
-First, run the development server:
+## 🌟 Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- 🔐 **Strava OAuth login** — securely connect your Strava account
+- ❤️ **Support causes you care about** — select from a list of vetted charities
+- 📊 **Track your impact** — see how much you've run and how much you've raised
+- 💸 **Automated donation logic** — pledge or contribute based on distance
+- 🌍 **Inspire others** — make your runs public to motivate your community
+
+## 🔧 Getting Started
+
+### 1. Clone the project
+
+```
+git clone https://github.com/yourusername/runforgood.git
+cd runforgood
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Install dependencies
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+```
+npm install
+# or
+yarn install
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. Create your environment file
 
-## Learn More
+```
+STRAVA_CLIENT_ID=your_strava_client_id
+STRAVA_CLIENT_SECRET=your_strava_client_secret
+```
 
-To learn more about Next.js, take a look at the following resources:
+### 4. Run the development server
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+npm install
+# or
+yarn install
+```
+## 🧪 Coming Soon
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- 🗺️ Charity leaderboards  
+- 🏅 Team and event-based fundraising  
+- 📬 Email notifications and sharing tools  
 
-## Deploy on Vercel
+## 🤝 Contributing
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Want to help make **Run For Good** even better?
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Fork the repo  
+2. Create a new feature branch  
+3. Make your changes  
+4. Submit a pull request 🙌  
+
+## 📄 License
+
+MIT License
+
+---
+
+Built with ❤️ by runners who believe every step can make a difference.
