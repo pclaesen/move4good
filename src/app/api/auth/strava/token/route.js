@@ -92,28 +92,22 @@ export async function POST(request) {
 
     console.log('Token exchange successful for athlete:', tokenResult.athlete.id);
 
-    // // Upsert user data into Supabase
-    // const { error: upsertError } = await supabase
-    //   .from('users')
-    //   .upsert({
-    //     strava_id: tokenResult.athlete.id,
-    //     strava_username: tokenResult.athlete.username,
-    //     strava_access_token: tokenResult.access_token,
-    //     strava_refresh_token: tokenResult.refresh_token,
-    //     strava_token_expires_at: tokenResult.expires_at,
-    //     first_name: tokenResult.athlete.firstname,
-    //     last_name: tokenResult.athlete.lastname,
-    //   }, {
-    //     onConflict: 'strava_id'
-    //   });
+    // Upsert user data into Supabase
+    const { error: upsertError } = await supabase
+      .from('users')
+      .upsert({
+        id: tokenResult.athlete.username,
+      }, {
+        onConflict: 'id'
+      });
 
-    // if (upsertError) {
-    //   console.error('Failed to update user in database:', upsertError);
-    //   return NextResponse.json(
-    //     { error: 'Failed to save user data' },
-    //     { status: 500 }
-    //   );
-    // }
+    if (upsertError) {
+      console.error('Failed to update user in database:', upsertError);
+      return NextResponse.json(
+        { error: 'Failed to save user data' },
+        { status: 500 }
+      );
+    }
 
     // Return the complete token data
     return NextResponse.json({
