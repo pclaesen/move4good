@@ -32,3 +32,26 @@ export async function POST(request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
+
+export async function DELETE(request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+    
+    if (!id) {
+      throw new Error('ID is required')
+    }
+
+    const { data, error } = await supabase
+      .from('users2')
+      .delete()
+      .eq('id', id)
+      .select()
+      
+    if (error) throw error
+    
+    return NextResponse.json({ data })
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
