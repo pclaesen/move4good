@@ -11,7 +11,7 @@ export default function Home() {
       <Header />
       <Hero />
       <Features />
-      <Connection />
+      {/* <Connection /> */}
       <Footer />
     </div>
   );

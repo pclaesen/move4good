@@ -19,7 +19,7 @@ export default function Connection() {
         }
         
         console.log('Supabase connection successful')
-        console.log('Data from users2 table:', data)
+        console.log('Data from users table:', data)
       } catch (err) {
         console.error('Failed to test connection:', err)
       }
@@ -51,7 +51,7 @@ export default function Connection() {
         // Refresh the data display
         const getResponse = await fetch('/api/supabase')
         const { data } = await getResponse.json()
-        console.log('Updated users2 table:', data)
+        console.log('Updated users table:', data)
       }
     } catch (err) {
       setMessage(`Failed to add user: ${err.message}`)
@@ -79,7 +79,7 @@ export default function Connection() {
         // Refresh the data display
         const getResponse = await fetch('/api/supabase')
         const { data } = await getResponse.json()
-        console.log('Updated users2 table:', data)
+        console.log('Updated users table:', data)
       }
     } catch (err) {
       setMessage(`Failed to delete user: ${err.message}`)

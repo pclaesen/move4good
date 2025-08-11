@@ -3,9 +3,8 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    // Example query - modify according to your needs
     const { data, error } = await supabase
-      .from('users2')
+      .from('users')
       .select('*')
       
     if (error) throw error
@@ -21,7 +20,7 @@ export async function POST(request) {
     const body = await request.json()
     
     const { data, error } = await supabase
-      .from('users2')
+      .from('users')
       .insert([body])
       .select()
       
@@ -43,7 +42,7 @@ export async function DELETE(request) {
     }
 
     const { data, error } = await supabase
-      .from('users2')
+      .from('users')
       .delete()
       .eq('id', id)
       .select()
