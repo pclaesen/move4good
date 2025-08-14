@@ -1,9 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 
-const secretKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+// Use new secret key format (sb_secret_...) which replaces service_role key
+const secretKey = process.env.SUPABASE_SECRET_KEY
 
 if (!secretKey) {
-  throw new Error('Missing service role key')
+  throw new Error('Missing Supabase secret key')
 }
 
 const supabase = createClient(
@@ -14,6 +15,9 @@ const supabase = createClient(
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: true
+    },
+    db: {
+      schema: 'public'
     }
   }
 )

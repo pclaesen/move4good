@@ -96,7 +96,7 @@ export async function POST(request) {
     const { error: upsertError } = await supabase
       .from('users')
       .upsert({
-        id: tokenResult.athlete.username,
+        id: tokenResult.athlete.id,
       }, {
         onConflict: 'id'
       });
