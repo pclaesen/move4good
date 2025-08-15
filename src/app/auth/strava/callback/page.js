@@ -14,11 +14,11 @@ export default function StravaCallback() {
   useEffect(() => {
     const handleCallback = async () => {
       const code = searchParams.get('code');
-      const error = searchParams.get('error');
+      const errorParam = searchParams.get('error');
       const scope = searchParams.get('scope');
 
       // Handle authorization denial
-      if (error === 'access_denied') {
+      if (errorParam === 'access_denied') {
         setStatus('denied');
         setError('Authorization was denied. You need to grant access to connect with Strava.');
         return;
@@ -44,17 +44,28 @@ export default function StravaCallback() {
           }),
         });
 
-        if (!tokenResponse.ok) {
-          throw new Error(`Token exchange failed: ${tokenResponse.status}`);
+        let tokenData;
+        try {
+          tokenData = await tokenResponse.json();
+        } catch (jsonErr) {
+          console.error('Failed to parse JSON from token endpoint:', jsonErr);
+          throw new Error(`Token endpoint returned invalid JSON (status ${tokenResponse.status})`);
         }
 
-        const tokenData = await tokenResponse.json();
-        
+        if (!tokenResponse.ok) {
+          console.error('Token exchange failed:', tokenData);
+          throw new Error(
+            `Token exchange failed (status ${tokenResponse.status}): ${
+              tokenData?.error || tokenData?.details || JSON.stringify(tokenData)
+            }`
+          );
+        }
+
         if (tokenData.error) {
           throw new Error(tokenData.error);
         }
 
-        // Store user data and tokens (you might want to use a more secure storage method)
+        // Store user data and tokens (demo purpose — secure storage recommended)
         const userData = {
           athlete: tokenData.athlete,
           accessToken: tokenData.access_token,
@@ -63,9 +74,8 @@ export default function StravaCallback() {
           scope: tokenData.scope,
         };
 
-        // Store in localStorage for demo purposes (use secure storage in production)
         localStorage.setItem('strava_user', JSON.stringify(userData));
-        
+
         setUserInfo(tokenData.athlete);
         setStatus('success');
 
@@ -73,7 +83,6 @@ export default function StravaCallback() {
         setTimeout(() => {
           router.push('/dashboard');
         }, 3000);
-
       } catch (err) {
         console.error('Strava OAuth Error:', err);
         setStatus('error');
@@ -106,11 +115,7 @@ export default function StravaCallback() {
             <h2>Successfully Connected!</h2>
             <p>Welcome to RunForGood, {userInfo?.firstname}!</p>
             <div className="user-info">
-              <img 
-                src={userInfo?.profile} 
-                alt="Profile" 
-                className="profile-image"
-              />
+              <img src={userInfo?.profile} alt="Profile" className="profile-image" />
               <div className="user-details">
                 <p><strong>{userInfo?.firstname} {userInfo?.lastname}</strong></p>
                 <p>@{userInfo?.username}</p>
@@ -122,25 +127,14 @@ export default function StravaCallback() {
         );
 
       case 'denied':
-        return (
-          <div className="callback-content error">
-            <div className="error-icon">❌</div>
-            <h2>Authorization Denied</h2>
-            <p>{error}</p>
-            <button onClick={handleRetry} className="retry-btn">
-              Try Again
-            </button>
-          </div>
-        );
-
       case 'error':
         return (
           <div className="callback-content error">
             <div className="error-icon">⚠️</div>
-            <h2>Connection Failed</h2>
+            <h2>{status === 'denied' ? 'Authorization Denied' : 'Connection Failed'}</h2>
             <p>{error}</p>
             <button onClick={handleRetry} className="retry-btn">
-              Back to Home
+              {status === 'denied' ? 'Try Again' : 'Back to Home'}
             </button>
           </div>
         );
