@@ -110,26 +110,35 @@ export async function POST(request) {
       hash.subarray(10, 16).toString('hex')
     ].join('-');
 
-    // Create Supabase auth user with deterministic UUID
-    const email = `strava-${tokenResult.athlete.id}@cryptorunner.local`;
-    
-    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-      id: authUserId,
-      email: email,
-      password: crypto.randomUUID(),
-      email_confirm: true,
-      user_metadata: {
-        strava_athlete_id: tokenResult.athlete.id,
-        provider: 'strava'
-      }
-    });
+    // Check if user already exists in users table
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('auth_user_id')
+      .eq('id', tokenResult.athlete.id)
+      .single();
 
-    if (authError && !authError.message.includes('already registered')) {
-      console.error('Failed to create auth user:', authError);
-      return NextResponse.json(
-        { error: 'Failed to create user authentication' },
-        { status: 500 }
-      );
+    // Only create auth user if not exists
+    if (!existingUser?.auth_user_id) {
+      const email = `strava-${tokenResult.athlete.id}@cryptorunner.local`;
+      
+      const { error: authError } = await supabase.auth.admin.createUser({
+        id: authUserId,
+        email: email,
+        password: crypto.randomUUID(),
+        email_confirm: true,
+        user_metadata: {
+          strava_athlete_id: tokenResult.athlete.id,
+          provider: 'strava'
+        }
+      });
+
+      if (authError) {
+        console.error('Failed to create auth user:', authError);
+        return NextResponse.json(
+          { error: 'Failed to create user authentication' },
+          { status: 500 }
+        );
+      }
     }
 
     // Upsert user data into Supabase with auth_user_id
