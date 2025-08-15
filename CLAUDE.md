@@ -59,7 +59,9 @@ SUPABASE_SECRET_KEY
 5. Activities filtered and formatted for app consumption
 
 ### Database Schema
-- Users table with `id` (int8) field (using Strava athlete id)
+- Users table with `id` (int8 - primary key)field (using Strava athlete id)
+- Charities table with `name` (primary key), `description`and `donation_address`
+- Junction table `users_charities` to link charities and users
 - Supabase client configured with service role key for server-side operations
 - Auto-refresh token and session persistence enabled
 

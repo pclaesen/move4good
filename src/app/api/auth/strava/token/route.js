@@ -92,11 +92,52 @@ export async function POST(request) {
 
     console.log('Token exchange successful for athlete:', tokenResult.athlete.id);
 
-    // Upsert user data into Supabase
+    // Generate deterministic UUID from Strava athlete ID
+    const crypto = require('crypto');
+    const namespace = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'; // UUID v4 namespace
+    const athleteIdString = tokenResult.athlete.id.toString();
+    const hash = crypto.createHash('sha1').update(namespace + athleteIdString).digest();
+    
+    // Create UUID v5 format
+    hash[6] = (hash[6] & 0x0f) | 0x50; // Version 5
+    hash[8] = (hash[8] & 0x3f) | 0x80; // Variant bits
+    
+    const authUserId = [
+      hash.subarray(0, 4).toString('hex'),
+      hash.subarray(4, 6).toString('hex'),
+      hash.subarray(6, 8).toString('hex'),
+      hash.subarray(8, 10).toString('hex'),
+      hash.subarray(10, 16).toString('hex')
+    ].join('-');
+
+    // Create Supabase auth user with deterministic UUID
+    const email = `strava-${tokenResult.athlete.id}@cryptorunner.local`;
+    
+    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+      id: authUserId,
+      email: email,
+      password: crypto.randomUUID(),
+      email_confirm: true,
+      user_metadata: {
+        strava_athlete_id: tokenResult.athlete.id,
+        provider: 'strava'
+      }
+    });
+
+    if (authError && !authError.message.includes('already registered')) {
+      console.error('Failed to create auth user:', authError);
+      return NextResponse.json(
+        { error: 'Failed to create user authentication' },
+        { status: 500 }
+      );
+    }
+
+    // Upsert user data into Supabase with auth_user_id
     const { error: upsertError } = await supabase
       .from('users')
       .upsert({
         id: tokenResult.athlete.id,
+        auth_user_id: authUserId,
       }, {
         onConflict: 'id'
       });
