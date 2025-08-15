@@ -113,7 +113,7 @@ export default function StravaCallback() {
           <div className="callback-content success">
             <div className="success-icon">✅</div>
             <h2>Successfully Connected!</h2>
-            <p>Welcome to RunForGood, {userInfo?.firstname}!</p>
+            <p>Welcome to Run4Good, {userInfo?.firstname}!</p>
             <div className="user-info">
               <img src={userInfo?.profile} alt="Profile" className="profile-image" />
               <div className="user-details">

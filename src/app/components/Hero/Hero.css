@@ -33,6 +33,44 @@
   margin-bottom: 4rem;
 }
 
+.connected-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+}
+
+.dashboard-btn,
+.charities-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  padding: 1rem 2rem;
+  border-radius: 30px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.dashboard-btn:hover,
+.charities-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
+}
+
+.dashboard-btn {
+  background: rgba(255, 215, 0, 0.2);
+  border-color: rgba(255, 215, 0, 0.5);
+}
+
+.dashboard-btn:hover {
+  background: rgba(255, 215, 0, 0.3);
+  border-color: rgba(255, 215, 0, 0.7);
+}
+
 .hero-stats {
   display: flex;
   justify-content: center;
@@ -77,5 +115,16 @@
   
   .stat-number {
     font-size: 2rem;
+  }
+  
+  .connected-actions {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .dashboard-btn,
+  .charities-btn {
+    width: 100%;
+    max-width: 300px;
   }
 }

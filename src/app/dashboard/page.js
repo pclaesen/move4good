@@ -197,7 +197,7 @@ export default function Dashboard() {
         {/* Call to Action */}
         <div className="cta-section">
           <h2>Ready to raise more funds?</h2>
-          <p>Share your RunForGood profile with friends and family to get more supporters!</p>
+          <p>Share your Run4Good profile with friends and family to get more supporters!</p>
           <button className="cta-btn">Share Your Profile</button>
         </div>
       </div>

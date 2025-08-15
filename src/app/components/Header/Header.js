@@ -84,7 +84,7 @@ export default function Header() {
         <div className="container">
           <div className="header-content">
             <div className="logo">
-              <h1>RunForGood</h1>
+              <h1>Run4Good</h1>
             </div>
             <nav className="nav">
               <a 
