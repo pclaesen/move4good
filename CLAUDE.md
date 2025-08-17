@@ -69,7 +69,7 @@ NEXT_PUBLIC_SITE_URL             # Defaults to localhost:3000 or Vercel URL
 5. Activities filtered and formatted for app consumption
 
 ### Database Schema
-- Users table with `id` (int8 - primary key)field (using Strava athlete id)
+- Users table with `id` (int8 - primary key)field (using Strava athlete id) and auth_user_id (uuid)
 - Charities table with `name` (primary key), `description`and `donation_address`
 - Junction table `users_charities` to link charities and users
 - Supabase client configured with service role key for server-side operations

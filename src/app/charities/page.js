@@ -83,6 +83,7 @@ export default function Charities() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [hasLoadedInitialSelections, setHasLoadedInitialSelections] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -147,6 +148,7 @@ export default function Charities() {
           if (selectionsResponse.ok) {
             const selectedNames = selectionsData.data.map(item => item.charity_name);
             setSelectedCharities(selectedNames);
+            setHasLoadedInitialSelections(true);
             return;
           } else if (selectionsResponse.status !== 404) {
             console.warn('Failed to load user selections:', selectionsData.error);
@@ -160,12 +162,13 @@ export default function Charities() {
           if (userData.connected && userData.athlete) {
             // Try to load selections even with localStorage auth
             try {
-              const selectionsResponse = await fetch('/api/user-charities');
+              const selectionsResponse = await fetch(`/api/user-charities?athlete_id=${userData.athlete.id}`);
               const selectionsData = await selectionsResponse.json();
               
               if (selectionsResponse.ok) {
                 const selectedNames = selectionsData.data.map(item => item.charity_name);
                 setSelectedCharities(selectedNames);
+                setHasLoadedInitialSelections(true);
               }
             } catch (err) {
               console.warn('Could not load selections for localStorage user:', err);
@@ -180,18 +183,21 @@ export default function Charities() {
       console.error('Error loading charities:', err);
     } finally {
       setLoading(false);
+      // Always set this flag after loading attempt, even if no selections found
+      setHasLoadedInitialSelections(true);
     }
   };
 
   useEffect(() => {
     // Save charity selections to database when they change
-    if (user && user.athlete && user.athlete.id && selectedCharities.length >= 0) {
+    // Only save after initial selections have been loaded to prevent wiping DB on page refresh
+    if (user && user.athlete && user.athlete.id && hasLoadedInitialSelections) {
       saveCharitySelections();
     }
-  }, [selectedCharities, user]);
+  }, [selectedCharities, user, hasLoadedInitialSelections]);
 
   const saveCharitySelections = async () => {
-    if (!user || !user.id) return;
+    if (!user || !user.athlete?.id) return;
     
     try {
       const response = await fetch('/api/user-charities', {
@@ -200,7 +206,8 @@ export default function Charities() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          charityNames: selectedCharities
+          charityNames: selectedCharities,
+          athlete_id: user.athlete.id
         })
       });
 

@@ -13,19 +13,41 @@ export async function GET(request) {
     // Get the authenticated user
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
     
-    if (authError || !authUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    let userData = null;
+    
+    if (authUser && !authError) {
+      // Primary authentication: Supabase session
+      const { data: userDataFromAuth, error: userError } = await adminSupabase
+        .from('users')
+        .select('*')
+        .eq('auth_user_id', authUser.id)
+        .single()
+
+      if (!userError && userDataFromAuth) {
+        userData = userDataFromAuth;
+      }
+    }
+    
+    // Fallback authentication: Check for athlete_id in query parameters for localStorage users
+    if (!userData) {
+      const { searchParams } = new URL(request.url)
+      const athleteId = searchParams.get('athlete_id')
+      
+      if (athleteId) {
+        const { data: userDataFromId, error: userError } = await adminSupabase
+          .from('users')
+          .select('*')
+          .eq('id', athleteId)
+          .single()
+
+        if (!userError && userDataFromId) {
+          userData = userDataFromId;
+        }
+      }
     }
 
-    // Get user data from database (using admin client for direct DB access)
-    const { data: userData, error: userError } = await adminSupabase
-      .from('users')
-      .select('*')
-      .eq('auth_user_id', authUser.id)
-      .single()
-
-    if (userError || !userData) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    if (!userData) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get a valid access token (refreshing if necessary)

@@ -14,23 +14,49 @@ export async function GET(request) {
     // Get the authenticated user
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
     
-    if (authError || !authUser) {
+    let userData = null;
+    
+    if (authUser && !authError) {
+      // Primary authentication: Supabase session
+      const { data: userDataFromAuth, error: userError } = await adminSupabase
+        .from('users')
+        .select('id, access_token, refresh_token, token_expires_at')
+        .eq('auth_user_id', authUser.id)
+        .single()
+
+      if (!userError && userDataFromAuth) {
+        userData = userDataFromAuth;
+      }
+    }
+    
+    // Fallback authentication: Check for athlete_id in query parameters for localStorage users
+    if (!userData) {
+      const { searchParams } = new URL(request.url)
+      const athleteId = searchParams.get('athlete_id')
+      
+      if (athleteId) {
+        const { data: userDataFromId, error: userError } = await adminSupabase
+          .from('users')
+          .select('id, access_token, refresh_token, token_expires_at')
+          .eq('id', athleteId)
+          .single()
+
+        if (!userError && userDataFromId) {
+          userData = userDataFromId;
+        }
+      }
+    }
+
+    if (!userData) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    // Get user's Strava token data from database
-    const { data: userData, error: userError } = await adminSupabase
-      .from('users')
-      .select('id, access_token, refresh_token, token_expires_at')
-      .eq('auth_user_id', authUser.id)
-      .single()
-
-    if (userError || !userData || !userData.access_token) {
+    if (!userData.access_token) {
       return NextResponse.json(
-        { error: 'User not found or no Strava access token' },
+        { error: 'No Strava access token found' },
         { status: 401 }
       );
     }

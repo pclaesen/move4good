@@ -9,19 +9,41 @@ export async function GET(request) {
     // Get the authenticated user
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
     
-    if (authError || !authUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    let userData = null;
+    
+    if (authUser && !authError) {
+      // Primary authentication: Supabase session
+      const { data: userDataFromAuth, error: userError } = await adminSupabase
+        .from('users')
+        .select('id')
+        .eq('auth_user_id', authUser.id)
+        .single()
+
+      if (!userError && userDataFromAuth) {
+        userData = userDataFromAuth;
+      }
+    }
+    
+    // Fallback authentication: Check for athlete_id in query parameters for localStorage users
+    if (!userData) {
+      const { searchParams } = new URL(request.url)
+      const athleteId = searchParams.get('athlete_id')
+      
+      if (athleteId) {
+        const { data: userDataFromId, error: userError } = await adminSupabase
+          .from('users')
+          .select('id')
+          .eq('id', athleteId)
+          .single()
+
+        if (!userError && userDataFromId) {
+          userData = userDataFromId;
+        }
+      }
     }
 
-    // Get user's Strava ID from database
-    const { data: userData, error: userError } = await adminSupabase
-      .from('users')
-      .select('id')
-      .eq('auth_user_id', authUser.id)
-      .single()
-
-    if (userError || !userData) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    if (!userData) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { data, error } = await adminSupabase
@@ -52,23 +74,40 @@ export async function POST(request) {
     // Get the authenticated user
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
     
-    if (authError || !authUser) {
+    let userData = null;
+    
+    if (authUser && !authError) {
+      // Primary authentication: Supabase session
+      const { data: userDataFromAuth, error: userError } = await adminSupabase
+        .from('users')
+        .select('id')
+        .eq('auth_user_id', authUser.id)
+        .single()
+
+      if (!userError && userDataFromAuth) {
+        userData = userDataFromAuth;
+      }
+    }
+    
+    const body = await request.json()
+    const { charityNames, athlete_id } = body
+    
+    // Fallback authentication: Check for athlete_id in request body for localStorage users
+    if (!userData && athlete_id) {
+      const { data: userDataFromId, error: userError } = await adminSupabase
+        .from('users')
+        .select('id')
+        .eq('id', athlete_id)
+        .single()
+
+      if (!userError && userDataFromId) {
+        userData = userDataFromId;
+      }
+    }
+
+    if (!userData) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    // Get user's Strava ID from database
-    const { data: userData, error: userError } = await adminSupabase
-      .from('users')
-      .select('id')
-      .eq('auth_user_id', authUser.id)
-      .single()
-
-    if (userError || !userData) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    const body = await request.json()
-    const { charityNames } = body
     
     if (!charityNames || !Array.isArray(charityNames)) {
       return NextResponse.json({ 
@@ -115,19 +154,41 @@ export async function DELETE(request) {
     // Get the authenticated user
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
     
-    if (authError || !authUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    let userData = null;
+    
+    if (authUser && !authError) {
+      // Primary authentication: Supabase session
+      const { data: userDataFromAuth, error: userError } = await adminSupabase
+        .from('users')
+        .select('id')
+        .eq('auth_user_id', authUser.id)
+        .single()
+
+      if (!userError && userDataFromAuth) {
+        userData = userDataFromAuth;
+      }
+    }
+    
+    // Fallback authentication: Check for athlete_id in query parameters for localStorage users
+    if (!userData) {
+      const { searchParams } = new URL(request.url)
+      const athleteId = searchParams.get('athlete_id')
+      
+      if (athleteId) {
+        const { data: userDataFromId, error: userError } = await adminSupabase
+          .from('users')
+          .select('id')
+          .eq('id', athleteId)
+          .single()
+
+        if (!userError && userDataFromId) {
+          userData = userDataFromId;
+        }
+      }
     }
 
-    // Get user's Strava ID from database
-    const { data: userData, error: userError } = await adminSupabase
-      .from('users')
-      .select('id')
-      .eq('auth_user_id', authUser.id)
-      .single()
-
-    if (userError || !userData) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    if (!userData) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)

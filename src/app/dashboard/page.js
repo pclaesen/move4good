@@ -31,7 +31,7 @@ export default function Dashboard() {
           if (response.ok) {
             const userData = await response.json();
             setUser(userData);
-            fetchActivities();
+            fetchActivities(userData);
             return;
           }
         }
@@ -41,8 +41,22 @@ export default function Dashboard() {
         if (localData) {
           const userData = JSON.parse(localData);
           if (userData.connected && userData.athlete) {
+            // Try to get enhanced user data from API with athlete_id
+            try {
+              const response = await fetch(`/api/user?athlete_id=${userData.athlete.id}`);
+              if (response.ok) {
+                const enhancedUserData = await response.json();
+                setUser(enhancedUserData);
+                fetchActivities(enhancedUserData);
+                return;
+              }
+            } catch (err) {
+              console.warn('Could not fetch enhanced user data, using localStorage data');
+            }
+            
+            // Fallback to localStorage data
             setUser(userData);
-            fetchActivities();
+            fetchActivities(userData);
             return;
           }
         }
@@ -58,9 +72,18 @@ export default function Dashboard() {
     checkAuth();
   }, [router]);
 
-  const fetchActivities = async () => {
+  const fetchActivities = async (userData = null) => {
     try {
-      const response = await fetch('/api/strava/activities');
+      // Use provided userData or fallback to state
+      const currentUser = userData || user;
+      let apiUrl = '/api/strava/activities';
+      
+      // Add athlete_id for localStorage users or when no Supabase session
+      if (currentUser && currentUser.athlete && currentUser.athlete.id) {
+        apiUrl += `?athlete_id=${currentUser.athlete.id}`;
+      }
+      
+      const response = await fetch(apiUrl);
 
       if (response.ok) {
         const activitiesData = await response.json();
