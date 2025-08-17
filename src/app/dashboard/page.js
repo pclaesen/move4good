@@ -2,6 +2,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { supabase } from '../../lib/supabase-client';
 import Header from '../components/Header/Header';
 import './dashboard.css';
 
@@ -18,27 +19,48 @@ export default function Dashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if user is authenticated
-    const userData = localStorage.getItem('strava_user');
-    if (!userData) {
-      router.push('/');
-      return;
-    }
+    // Check if user is authenticated and fetch user data
+    const checkAuth = async () => {
+      try {
+        // Check Supabase auth first
+        const { data: { user: authUser }, error } = await supabase.auth.getUser();
+        
+        if (authUser && !error) {
+          // Fetch user data with athlete info
+          const response = await fetch('/api/user');
+          if (response.ok) {
+            const userData = await response.json();
+            setUser(userData);
+            fetchActivities();
+            return;
+          }
+        }
+        
+        // Fallback to localStorage check (for users who connected via Strava but don't have Supabase session)
+        const localData = localStorage.getItem('strava_user');
+        if (localData) {
+          const userData = JSON.parse(localData);
+          if (userData.connected && userData.athlete) {
+            setUser(userData);
+            fetchActivities();
+            return;
+          }
+        }
+        
+        // No authentication found, redirect to home
+        router.push('/');
+      } catch (err) {
+        console.error('Auth check failed:', err);
+        router.push('/');
+      }
+    };
 
-    const parsedUser = JSON.parse(userData);
-    setUser(parsedUser);
-    
-    // Fetch user's recent activities
-    fetchActivities(parsedUser.accessToken);
+    checkAuth();
   }, [router]);
 
-  const fetchActivities = async (accessToken) => {
+  const fetchActivities = async () => {
     try {
-      const response = await fetch('/api/strava/activities', {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      });
+      const response = await fetch('/api/strava/activities');
 
       if (response.ok) {
         const activitiesData = await response.json();
@@ -71,9 +93,14 @@ export default function Dashboard() {
     }
   };
 
-  const handleDisconnect = () => {
-    localStorage.removeItem('strava_user');
-    router.push('/');
+  const handleDisconnect = async () => {
+    try {
+      await supabase.auth.signOut();
+      router.push('/');
+    } catch (error) {
+      console.error('Error signing out:', error);
+      router.push('/');
+    }
   };
 
   const formatTime = (seconds) => {

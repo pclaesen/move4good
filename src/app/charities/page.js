@@ -1,49 +1,75 @@
 'use client'
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { supabase } from '../../lib/supabase-client';
 import Header from '../components/Header/Header';
 import './Charities.css';
 import { CharityForm } from '../components/CharityForm/CharityForm';
 import StravaConnectButton from '../components/StravaConnectButton/StravaConnectButton';
 
-// Dummy data for charities
-const INITIAL_CHARITIES = [
-  { 
-    id: 1, 
-    name: 'Save the Children',
-    description: 'Helping children worldwide get the health care, education, and protection they need.'
-  },
-  { 
-    id: 2, 
-    name: 'Red Cross',
-    description: 'Providing emergency assistance, disaster relief, and disaster preparedness education.'
-  },
-  { 
-    id: 3, 
-    name: 'Doctors Without Borders',
-    description: 'Delivering medical care where it is needed most, regardless of race, religion, or politics.'
-  },
-  { 
-    id: 4, 
-    name: 'World Wildlife Fund',
-    description: 'Working to conserve nature and reduce the most pressing threats to biodiversity.'
-  },
-];
 
 function useStravaConnected() {
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const isConnected = localStorage.getItem('strava_user') !== null;
-    setConnected(isConnected);
-    setLoading(false);
-  }, []);
+    const checkAuth = async () => {
+      try {
+        // Check Supabase auth first (preferred method)
+        const { data: { user }, error } = await supabase.auth.getUser();
+        
+        if (user && !error) {
+          setConnected(true);
+          setLoading(false);
+          return;
+        }
+        
+        // Fallback to localStorage check (for users who connected via Strava but don't have Supabase session)
+        const localData = localStorage.getItem('strava_user');
+        if (localData) {
+          const userData = JSON.parse(localData);
+          if (userData.connected && userData.athlete) {
+            setConnected(true);
+            setLoading(false);
+            return;
+          }
+        }
+        
+        // No authentication found
+        setConnected(false);
+      } catch (err) {
+        console.error('Auth check failed:', err);
+        setConnected(false);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  useEffect(() => {
-    if (window.location.pathname === '/auth/strava/callback') {
-      setConnected(true);
-    }
+    checkAuth();
+    
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        setConnected(true);
+      } else if (event === 'SIGNED_OUT') {
+        localStorage.removeItem('strava_user');
+        setConnected(false);
+      }
+    });
+    
+    // Listen for storage changes (in case user connects/disconnects in another tab)
+    const handleStorageChange = () => {
+      checkAuth();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('focus', handleStorageChange);
+    
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('focus', handleStorageChange);
+    };
   }, []);
 
   return [connected, setConnected, loading];
@@ -52,72 +78,198 @@ function useStravaConnected() {
 export default function Charities() {
   const [stravaConnected, setStravaConnected, loadingConnection] = useStravaConnected();
   const [selectedCharities, setSelectedCharities] = useState([]);
-  const [charities, setCharities] = useState(INITIAL_CHARITIES);
+  const [charities, setCharities] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
-    // Load user data if available
-    const userData = localStorage.getItem('strava_user');
-    if (userData) {
-      const parsedUser = JSON.parse(userData);
-      setUser(parsedUser);
-    }
+    // Load user data if authenticated
+    const loadUserData = async () => {
+      try {
+        // Check Supabase auth first
+        const { data: { user: authUser }, error } = await supabase.auth.getUser();
+        
+        if (authUser && !error) {
+          // Fetch user data with athlete info
+          const response = await fetch('/api/user');
+          if (response.ok) {
+            const userData = await response.json();
+            setUser(userData);
+            return;
+          }
+        }
+        
+        // Fallback to localStorage check (for users who connected via Strava but don't have Supabase session)
+        const localData = localStorage.getItem('strava_user');
+        if (localData) {
+          const userData = JSON.parse(localData);
+          if (userData.connected && userData.athlete) {
+            setUser(userData);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load user data:', err);
+      }
+    };
 
-    // Load saved charity selections
-    const savedSelections = localStorage.getItem('selected_charities');
-    if (savedSelections) {
-      setSelectedCharities(JSON.parse(savedSelections));
-    }
-
-    // Load custom charities
-    const savedCharities = localStorage.getItem('custom_charities');
-    if (savedCharities) {
-      const customCharities = JSON.parse(savedCharities);
-      setCharities([...INITIAL_CHARITIES, ...customCharities]);
-    }
+    loadUserData();
+    loadCharitiesAndSelections();
   }, []);
 
-  useEffect(() => {
-    // Save charity selections to localStorage
-    if (selectedCharities.length > 0) {
-      localStorage.setItem('selected_charities', JSON.stringify(selectedCharities));
-    }
-  }, [selectedCharities]);
+  const loadCharitiesAndSelections = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-  const handleCharityToggle = (id) => {
+      // Load all charities from database
+      const charitiesResponse = await fetch('/api/charities');
+      const charitiesData = await charitiesResponse.json();
+      
+      if (charitiesResponse.ok) {
+        setCharities(charitiesData.data || []);
+      } else {
+        throw new Error(charitiesData.error || 'Failed to load charities');
+      }
+
+      // Load user's charity selections if user is connected
+      try {
+        // Check Supabase auth first
+        const { data: { user: authUser }, error } = await supabase.auth.getUser();
+        
+        if (authUser && !error) {
+          const selectionsResponse = await fetch('/api/user-charities');
+          const selectionsData = await selectionsResponse.json();
+          
+          if (selectionsResponse.ok) {
+            const selectedNames = selectionsData.data.map(item => item.charity_name);
+            setSelectedCharities(selectedNames);
+            return;
+          } else if (selectionsResponse.status !== 404) {
+            console.warn('Failed to load user selections:', selectionsData.error);
+          }
+        }
+        
+        // Fallback check for localStorage user (they can still see charities but selections might not load from API)
+        const localData = localStorage.getItem('strava_user');
+        if (localData) {
+          const userData = JSON.parse(localData);
+          if (userData.connected && userData.athlete) {
+            // Try to load selections even with localStorage auth
+            try {
+              const selectionsResponse = await fetch('/api/user-charities');
+              const selectionsData = await selectionsResponse.json();
+              
+              if (selectionsResponse.ok) {
+                const selectedNames = selectionsData.data.map(item => item.charity_name);
+                setSelectedCharities(selectedNames);
+              }
+            } catch (err) {
+              console.warn('Could not load selections for localStorage user:', err);
+            }
+          }
+        }
+      } catch (authErr) {
+        console.warn('User not authenticated, skipping charity selections load');
+      }
+    } catch (err) {
+      setError(err.message);
+      console.error('Error loading charities:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Save charity selections to database when they change
+    if (user && user.athlete && user.athlete.id && selectedCharities.length >= 0) {
+      saveCharitySelections();
+    }
+  }, [selectedCharities, user]);
+
+  const saveCharitySelections = async () => {
+    if (!user || !user.id) return;
+    
+    try {
+      const response = await fetch('/api/user-charities', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          charityNames: selectedCharities
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save charity selections');
+      }
+    } catch (err) {
+      console.error('Error saving charity selections:', err);
+      setError('Failed to save your charity selections');
+    }
+  };
+
+  const handleCharityToggle = (charityName) => {
     setSelectedCharities((prev) =>
-      prev.includes(id)
-        ? prev.filter((cid) => cid !== id)
-        : [...prev, id]
+      prev.includes(charityName)
+        ? prev.filter((name) => name !== charityName)
+        : [...prev, charityName]
     );
   };
 
-  const handleAddCharity = (charityData) => {
-    const newId = Math.max(...charities.map(c => c.id)) + 1;
-    const newCharity = {
-      id: newId,
-      name: charityData.name,
-      description: charityData.description,
-      donationAddress: charityData.donationAddress
-    };
-    
-    const updatedCharities = [...charities, newCharity];
-    setCharities(updatedCharities);
-    
-    // Save custom charities to localStorage
-    const customCharities = updatedCharities.filter(c => !INITIAL_CHARITIES.find(ic => ic.id === c.id));
-    localStorage.setItem('custom_charities', JSON.stringify(customCharities));
-    
-    setShowAddForm(false);
+  const handleAddCharity = async (charityData) => {
+    try {
+      const response = await fetch('/api/charities', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: charityData.name,
+          description: charityData.description,
+          donationAddress: charityData.donationAddress
+        })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        // Reload charities to get the updated list
+        await loadCharitiesAndSelections();
+        setShowAddForm(false);
+      } else {
+        throw new Error(data.error || 'Failed to add charity');
+      }
+    } catch (err) {
+      console.error('Error adding charity:', err);
+      setError('Failed to add charity');
+    }
   };
 
-  if (loadingConnection) {
+  if (loadingConnection || loading) {
     return (
       <div className="charities-loading">
         <div className="spinner"></div>
         <p>Loading...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="charities-error">
+        <div className="container">
+          <Header />
+          <div className="error-message">
+            <h2>Error Loading Charities</h2>
+            <p>{error}</p>
+            <button onClick={loadCharitiesAndSelections}>Try Again</button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -220,7 +372,7 @@ export default function Charities() {
           <h2>Available Charities</h2>
           <div className="charities-list">
             {charities.map((charity) => (
-              <div key={charity.id} className="charity-card">
+              <div key={charity.name} className="charity-card">
                 <div className="charity-header">
                   <div>
                     <h3>{charity.name}</h3>
@@ -234,14 +386,14 @@ export default function Charities() {
                         {charity.description}
                       </p>
                     )}
-                    {charity.donationAddress && (
+                    {charity.donation_address && (
                       <p style={{ 
                         margin: '0.5rem 0 0 0', 
                         color: '#888', 
                         fontSize: '0.85rem',
                         fontStyle: 'italic'
                       }}>
-                        Donation Address: {charity.donationAddress}
+                        Donation Address: {charity.donation_address}
                       </p>
                     )}
                   </div>
@@ -250,8 +402,8 @@ export default function Charities() {
                   <label>
                     <input
                       type="checkbox"
-                      checked={selectedCharities.includes(charity.id)}
-                      onChange={() => handleCharityToggle(charity.id)}
+                      checked={selectedCharities.includes(charity.name)}
+                      onChange={() => handleCharityToggle(charity.name)}
                       disabled={!stravaConnected}
                     />
                     {stravaConnected ? 'Select this charity' : 'Connect Strava to select'}
@@ -269,10 +421,7 @@ export default function Charities() {
             <div>
               <p>You're running for these amazing causes:</p>
               <div className="selected-charities-list">
-                {charities
-                  .filter(c => selectedCharities.includes(c.id))
-                  .map(c => c.name)
-                  .join(', ')}
+                {selectedCharities.join(', ')}
               </div>
               <p style={{ marginTop: '1.5rem', fontSize: '1rem' }}>
                 Every kilometer you run will contribute to these charities. Keep up the great work!

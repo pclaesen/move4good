@@ -141,12 +141,18 @@ export async function POST(request) {
       }
     }
 
-    // Upsert user data into Supabase with auth_user_id
+    // Calculate token expiration timestamp
+    const expiresAt = new Date(Date.now() + (tokenResult.expires_in * 1000));
+
+    // Upsert user data into Supabase with auth_user_id and tokens
     const { error: upsertError } = await supabase
       .from('users')
       .upsert({
         id: tokenResult.athlete.id,
         auth_user_id: authUserId,
+        access_token: tokenResult.access_token,
+        refresh_token: tokenResult.refresh_token,
+        token_expires_at: expiresAt.toISOString(),
       }, {
         onConflict: 'id'
       });
@@ -159,14 +165,29 @@ export async function POST(request) {
       );
     }
 
-    // Return the complete token data
+    // Create a Supabase Auth session for the user with correct redirect URL
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+    const { data: sessionData, error: sessionError } = await supabase.auth.admin.generateLink({
+      type: 'magiclink',
+      email: `strava-${tokenResult.athlete.id}@cryptorunner.local`,
+      options: {
+        redirectTo: `${baseUrl}/dashboard`
+      }
+    });
+
+    if (sessionError) {
+      console.error('Failed to generate auth link:', sessionError);
+      return NextResponse.json(
+        { error: 'Failed to create user session' },
+        { status: 500 }
+      );
+    }
+
+    // Return success with redirect URL (this will contain the auth tokens)
     return NextResponse.json({
-      access_token: tokenResult.access_token,
-      refresh_token: tokenResult.refresh_token,
-      expires_at: tokenResult.expires_at,
-      expires_in: tokenResult.expires_in,
-      token_type: tokenResult.token_type,
-      scope: tokenResult.scope,
+      success: true,
+      redirectUrl: sessionData.properties.action_link,
       athlete: {
         id: tokenResult.athlete.id,
         username: tokenResult.athlete.username,

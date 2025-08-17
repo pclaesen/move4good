@@ -39,8 +39,7 @@ export default function Footer() {
           </div>
         </div>
         <div className="footer-bottom">
-          <p>&copy; 2024 Run4Good. All rights reserved.</p>
-          <p>Powered by Strava API</p>
+          <p>&copy; 2025 Run4Good. All rights reserved.</p>
         </div>
       </div>
     </footer>

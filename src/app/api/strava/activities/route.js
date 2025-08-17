@@ -1,18 +1,42 @@
 // src/app/api/strava/activities/route.js
 import { NextResponse } from 'next/server';
+import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase-server';
+import { getValidStravaToken } from '@/lib/strava-token-refresh';
 
 export async function GET(request) {
   try {
-    const authHeader = request.headers.get('authorization');
+    // Use publishable key client for reading user session
+    const supabase = await createSupabaseServerClient()
     
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Use admin client for database operations
+    const adminSupabase = createSupabaseAdminClient()
+    
+    // Get the authenticated user
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !authUser) {
       return NextResponse.json(
-        { error: 'Authorization header is required' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    const accessToken = authHeader.substring(7); // Remove 'Bearer ' prefix
+    // Get user's Strava token data from database
+    const { data: userData, error: userError } = await adminSupabase
+      .from('users')
+      .select('id, access_token, refresh_token, token_expires_at')
+      .eq('auth_user_id', authUser.id)
+      .single()
+
+    if (userError || !userData || !userData.access_token) {
+      return NextResponse.json(
+        { error: 'User not found or no Strava access token' },
+        { status: 401 }
+      );
+    }
+
+    // Get a valid access token (refreshing if necessary)
+    const accessToken = await getValidStravaToken(userData);
     
     // Fetch activities from Strava API
     const activitiesUrl = 'https://www.strava.com/api/v3/athlete/activities';
