@@ -11,7 +11,19 @@ export default function StravaConnectButton() {
     
     // Strava OAuth configuration
     const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID || 'your_client_id';
-    const redirectUri = process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI || 'http://localhost:3000/auth/strava/callback';
+    
+    // Build redirect URI dynamically based on current location
+    const getRedirectUri = () => {
+      if (process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI) {
+        return process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI;
+      }
+      
+      // Use current origin for dynamic URL detection
+      const origin = window.location.origin;
+      return `${origin}/auth/strava/callback`;
+    };
+    
+    const redirectUri = getRedirectUri();
     const scope = 'read,activity:read_all';
     
     // Build Strava authorization URL

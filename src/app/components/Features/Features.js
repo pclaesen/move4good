@@ -29,7 +29,7 @@ export default function Features() {
     <section id="features" className="features">
       <div className="container">
         <div className="features-header">
-          <h2>How RunForGood Works</h2>
+          <h2>How Run4Good Works</h2>
           <p>Transform your passion for running into meaningful charitable impact</p>
         </div>
         <div className="features-grid">

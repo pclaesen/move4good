@@ -65,23 +65,23 @@ export default function StravaCallback() {
           throw new Error(tokenData.error);
         }
 
-        // Store user data and tokens (demo purpose — secure storage recommended)
-        const userData = {
-          athlete: tokenData.athlete,
-          accessToken: tokenData.access_token,
-          refreshToken: tokenData.refresh_token,
-          expiresAt: tokenData.expires_at,
-          scope: tokenData.scope,
-        };
-
-        localStorage.setItem('strava_user', JSON.stringify(userData));
+        if (!tokenData.success || !tokenData.redirectUrl) {
+          throw new Error('Invalid response from token exchange');
+        }
 
         setUserInfo(tokenData.athlete);
         setStatus('success');
 
-        // Redirect to dashboard after 3 seconds
+        // Store user data in localStorage for client-side authentication checks
+        localStorage.setItem('strava_user', JSON.stringify({
+          athlete: tokenData.athlete,
+          connected: true,
+          connectedAt: new Date().toISOString()
+        }));
+
+        // Redirect to the Supabase Auth URL to establish session
         setTimeout(() => {
-          router.push('/dashboard');
+          window.location.href = tokenData.redirectUrl;
         }, 3000);
       } catch (err) {
         console.error('Strava OAuth Error:', err);
@@ -113,7 +113,7 @@ export default function StravaCallback() {
           <div className="callback-content success">
             <div className="success-icon">✅</div>
             <h2>Successfully Connected!</h2>
-            <p>Welcome to RunForGood, {userInfo?.firstname}!</p>
+            <p>Welcome to Run4Good, {userInfo?.firstname}!</p>
             <div className="user-info">
               <img src={userInfo?.profile} alt="Profile" className="profile-image" />
               <div className="user-details">

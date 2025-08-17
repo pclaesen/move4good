@@ -1,6 +1,6 @@
-# 🏃‍♂️ Run For Good
+# 🏃‍♂️ Run4Good
 
-**Run For Good** is a Next.js web app that lets you turn your running into real-world impact. Connect your **Strava** account, choose your favorite **charities**, and automatically collect or pledge donations based on your running activity.
+**Run4Good** is a Next.js web app that lets you turn your running into real-world impact. Connect your **Strava** account, choose your favorite **charities**, and automatically collect or pledge donations based on your running activity.
 
 ## 🌟 Features
 
@@ -49,7 +49,7 @@ yarn install
 
 ## 🤝 Contributing
 
-Want to help make **Run For Good** even better?
+Want to help make **Run4Good** even better?
 
 1. Fork the repo  
 2. Create a new feature branch  

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**CryptoRunner** (formerly "Run For Good") is a Next.js charity fundraising app that connects Strava activities to charitable donations. Users authenticate with Strava OAuth, select charities, and automatically collect/pledge donations based on their running activities.
+**CryptoRunner** (formerly "Run4Good") is a Next.js charity fundraising app that connects Strava activities to charitable donations. Users authenticate with Strava OAuth, select charities, and automatically collect/pledge donations based on their running activities.
 
 ## Common Development Commands
 
@@ -45,11 +45,21 @@ npm run lint
 
 ### Environment Variables Required
 ```
+# Required for all environments
 NEXT_PUBLIC_STRAVA_CLIENT_ID
 STRAVA_CLIENT_SECRET
 NEXT_PUBLIC_SUPABASE_URL
 SUPABASE_SECRET_KEY
+
+# Optional - for custom URLs (auto-detected if not provided)
+NEXT_PUBLIC_STRAVA_REDIRECT_URI  # Defaults to {current_origin}/auth/strava/callback
+NEXT_PUBLIC_SITE_URL             # Defaults to localhost:3000 or Vercel URL
 ```
+
+### URL Configuration
+- **Local Development**: URLs are auto-detected from `window.location.origin`
+- **Production**: Set `NEXT_PUBLIC_SITE_URL` to your domain (e.g., `https://yourdomain.com`)
+- **Strava App Settings**: Add your production callback URL to Strava app configuration
 
 ### Strava Integration Flow
 1. User authenticates via Strava OAuth
@@ -59,7 +69,7 @@ SUPABASE_SECRET_KEY
 5. Activities filtered and formatted for app consumption
 
 ### Database Schema
-- Users table with `id` (int8 - primary key)field (using Strava athlete id)
+- Users table with `id` (int8 - primary key)field (using Strava athlete id) and auth_user_id (uuid)
 - Charities table with `name` (primary key), `description`and `donation_address`
 - Junction table `users_charities` to link charities and users
 - Supabase client configured with service role key for server-side operations

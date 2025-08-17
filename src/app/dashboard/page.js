@@ -2,6 +2,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { supabase } from '../../lib/supabase-client';
 import Header from '../components/Header/Header';
 import './dashboard.css';
 
@@ -18,27 +19,71 @@ export default function Dashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if user is authenticated
-    const userData = localStorage.getItem('strava_user');
-    if (!userData) {
-      router.push('/');
-      return;
-    }
+    // Check if user is authenticated and fetch user data
+    const checkAuth = async () => {
+      try {
+        // Check Supabase auth first
+        const { data: { user: authUser }, error } = await supabase.auth.getUser();
+        
+        if (authUser && !error) {
+          // Fetch user data with athlete info
+          const response = await fetch('/api/user');
+          if (response.ok) {
+            const userData = await response.json();
+            setUser(userData);
+            fetchActivities(userData);
+            return;
+          }
+        }
+        
+        // Fallback to localStorage check (for users who connected via Strava but don't have Supabase session)
+        const localData = localStorage.getItem('strava_user');
+        if (localData) {
+          const userData = JSON.parse(localData);
+          if (userData.connected && userData.athlete) {
+            // Try to get enhanced user data from API with athlete_id
+            try {
+              const response = await fetch(`/api/user?athlete_id=${userData.athlete.id}`);
+              if (response.ok) {
+                const enhancedUserData = await response.json();
+                setUser(enhancedUserData);
+                fetchActivities(enhancedUserData);
+                return;
+              }
+            } catch (err) {
+              console.warn('Could not fetch enhanced user data, using localStorage data');
+            }
+            
+            // Fallback to localStorage data
+            setUser(userData);
+            fetchActivities(userData);
+            return;
+          }
+        }
+        
+        // No authentication found, redirect to home
+        router.push('/');
+      } catch (err) {
+        console.error('Auth check failed:', err);
+        router.push('/');
+      }
+    };
 
-    const parsedUser = JSON.parse(userData);
-    setUser(parsedUser);
-    
-    // Fetch user's recent activities
-    fetchActivities(parsedUser.accessToken);
+    checkAuth();
   }, [router]);
 
-  const fetchActivities = async (accessToken) => {
+  const fetchActivities = async (userData = null) => {
     try {
-      const response = await fetch('/api/strava/activities', {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      });
+      // Use provided userData or fallback to state
+      const currentUser = userData || user;
+      let apiUrl = '/api/strava/activities';
+      
+      // Add athlete_id for localStorage users or when no Supabase session
+      if (currentUser && currentUser.athlete && currentUser.athlete.id) {
+        apiUrl += `?athlete_id=${currentUser.athlete.id}`;
+      }
+      
+      const response = await fetch(apiUrl);
 
       if (response.ok) {
         const activitiesData = await response.json();
@@ -71,9 +116,14 @@ export default function Dashboard() {
     }
   };
 
-  const handleDisconnect = () => {
-    localStorage.removeItem('strava_user');
-    router.push('/');
+  const handleDisconnect = async () => {
+    try {
+      await supabase.auth.signOut();
+      router.push('/');
+    } catch (error) {
+      console.error('Error signing out:', error);
+      router.push('/');
+    }
   };
 
   const formatTime = (seconds) => {
@@ -197,7 +247,7 @@ export default function Dashboard() {
         {/* Call to Action */}
         <div className="cta-section">
           <h2>Ready to raise more funds?</h2>
-          <p>Share your RunForGood profile with friends and family to get more supporters!</p>
+          <p>Share your Run4Good profile with friends and family to get more supporters!</p>
           <button className="cta-btn">Share Your Profile</button>
         </div>
       </div>

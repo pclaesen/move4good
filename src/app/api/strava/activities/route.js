@@ -1,18 +1,68 @@
 // src/app/api/strava/activities/route.js
 import { NextResponse } from 'next/server';
+import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase-server';
+import { getValidStravaToken } from '@/lib/strava-token-refresh';
 
 export async function GET(request) {
   try {
-    const authHeader = request.headers.get('authorization');
+    // Use publishable key client for reading user session
+    const supabase = await createSupabaseServerClient()
     
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Use admin client for database operations
+    const adminSupabase = createSupabaseAdminClient()
+    
+    // Get the authenticated user
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+    
+    let userData = null;
+    
+    if (authUser && !authError) {
+      // Primary authentication: Supabase session
+      const { data: userDataFromAuth, error: userError } = await adminSupabase
+        .from('users')
+        .select('id, access_token, refresh_token, token_expires_at')
+        .eq('auth_user_id', authUser.id)
+        .single()
+
+      if (!userError && userDataFromAuth) {
+        userData = userDataFromAuth;
+      }
+    }
+    
+    // Fallback authentication: Check for athlete_id in query parameters for localStorage users
+    if (!userData) {
+      const { searchParams } = new URL(request.url)
+      const athleteId = searchParams.get('athlete_id')
+      
+      if (athleteId) {
+        const { data: userDataFromId, error: userError } = await adminSupabase
+          .from('users')
+          .select('id, access_token, refresh_token, token_expires_at')
+          .eq('id', athleteId)
+          .single()
+
+        if (!userError && userDataFromId) {
+          userData = userDataFromId;
+        }
+      }
+    }
+
+    if (!userData) {
       return NextResponse.json(
-        { error: 'Authorization header is required' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    const accessToken = authHeader.substring(7); // Remove 'Bearer ' prefix
+    if (!userData.access_token) {
+      return NextResponse.json(
+        { error: 'No Strava access token found' },
+        { status: 401 }
+      );
+    }
+
+    // Get a valid access token (refreshing if necessary)
+    const accessToken = await getValidStravaToken(userData);
     
     // Fetch activities from Strava API
     const activitiesUrl = 'https://www.strava.com/api/v3/athlete/activities';
