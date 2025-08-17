@@ -84,6 +84,7 @@ export default function Charities() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [hasLoadedInitialSelections, setHasLoadedInitialSelections] = useState(false);
+  const [userChangedSelections, setUserChangedSelections] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -190,14 +191,21 @@ export default function Charities() {
 
   useEffect(() => {
     // Save charity selections to database when they change
-    // Only save after initial selections have been loaded to prevent wiping DB on page refresh
-    if (user && user.athlete && user.athlete.id && hasLoadedInitialSelections) {
+    // Only save after initial selections have been loaded AND user has made explicit changes
+    if (user && user.athlete && user.athlete.id && hasLoadedInitialSelections && userChangedSelections) {
       saveCharitySelections();
+      setUserChangedSelections(false); // Reset flag after saving
     }
-  }, [selectedCharities, user, hasLoadedInitialSelections]);
+  }, [selectedCharities, user, hasLoadedInitialSelections, userChangedSelections]);
 
   const saveCharitySelections = async () => {
     if (!user || !user.athlete?.id) return;
+    
+    // Extra safety: Don't save empty selections unless user explicitly made changes
+    if (selectedCharities.length === 0 && !userChangedSelections) {
+      console.warn('Preventing save of empty charity selections without explicit user action');
+      return;
+    }
     
     try {
       const response = await fetch('/api/user-charities', {
@@ -227,6 +235,7 @@ export default function Charities() {
         ? prev.filter((name) => name !== charityName)
         : [...prev, charityName]
     );
+    setUserChangedSelections(true); // Mark that user made a change
   };
 
   const handleAddCharity = async (charityData) => {
