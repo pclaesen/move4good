@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase-client';
 import Header from '../components/Header/Header';
+import QRCodePopup from '../components/QRCodePopup/QRCodePopup';
 import './dashboard.css';
 
 export default function Dashboard() {
@@ -16,6 +17,8 @@ export default function Dashboard() {
     totalDonations: 0,
     totalTime: 0
   });
+  const [selectedCharities, setSelectedCharities] = useState([]);
+  const [qrPopup, setQrPopup] = useState({ isOpen: false, charity: null });
   const router = useRouter();
 
   useEffect(() => {
@@ -32,6 +35,7 @@ export default function Dashboard() {
             const userData = await response.json();
             setUser(userData);
             fetchActivities(userData);
+            loadSelectedCharities(userData);
             return;
           }
         }
@@ -48,6 +52,7 @@ export default function Dashboard() {
                 const enhancedUserData = await response.json();
                 setUser(enhancedUserData);
                 fetchActivities(enhancedUserData);
+                loadSelectedCharities(enhancedUserData);
                 return;
               }
             } catch (err) {
@@ -57,6 +62,7 @@ export default function Dashboard() {
             // Fallback to localStorage data
             setUser(userData);
             fetchActivities(userData);
+            loadSelectedCharities(userData);
             return;
           }
         }
@@ -71,6 +77,23 @@ export default function Dashboard() {
 
     checkAuth();
   }, [router]);
+
+  const loadSelectedCharities = async (userData = null) => {
+    try {
+      const currentUser = userData || user;
+      
+      // Check if we have user data with athlete info
+      if (!currentUser || !currentUser.athlete?.id) return;
+      
+      const response = await fetch(`/api/user-charities?athlete_id=${currentUser.athlete.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedCharities(data.data || []);
+      }
+    } catch (error) {
+      console.error('Failed to load selected charities:', error);
+    }
+  };
 
   const fetchActivities = async (userData = null) => {
     try {
@@ -138,6 +161,14 @@ export default function Dashboard() {
       day: 'numeric',
       year: 'numeric'
     });
+  };
+
+  const handleShowQR = (charity) => {
+    setQrPopup({ isOpen: true, charity });
+  };
+
+  const handleCloseQR = () => {
+    setQrPopup({ isOpen: false, charity: null });
   };
 
   if (loading) {
@@ -209,6 +240,36 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Selected Charities for Sponsorship */}
+        {selectedCharities.length > 0 && (
+          <div className="charities-section">
+            <h2>Get Sponsored for Your Charities</h2>
+            <p>Share these QR codes with sponsors who want to support your running for these causes.</p>
+            <div className="charities-grid">
+              {selectedCharities.map((charitySelection) => (
+                <div key={charitySelection.charity_name} className="charity-sponsor-card">
+                  <div className="charity-info">
+                    <h3>{charitySelection.charity_name}</h3>
+                    {charitySelection.charities?.description && (
+                      <p className="charity-description">{charitySelection.charities.description}</p>
+                    )}
+                  </div>
+                  <button 
+                    className="qr-btn"
+                    onClick={() => handleShowQR({
+                      name: charitySelection.charity_name,
+                      address: charitySelection.charities?.donation_address
+                    })}
+                    disabled={!charitySelection.charities?.donation_address}
+                  >
+                    Show QR Code
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Recent Activities */}
         <div className="activities-section">
           <h2>Recent Activities</h2>
@@ -251,6 +312,14 @@ export default function Dashboard() {
           <button className="cta-btn">Share Your Profile</button>
         </div>
       </div>
+      
+      {/* QR Code Popup */}
+      <QRCodePopup
+        isOpen={qrPopup.isOpen}
+        onClose={handleCloseQR}
+        walletAddress={qrPopup.charity?.address}
+        charityName={qrPopup.charity?.name}
+      />
     </div>
   );
 }
