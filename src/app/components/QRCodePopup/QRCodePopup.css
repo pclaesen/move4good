@@ -150,6 +150,112 @@
   color: #92400e;
 }
 
+.auto-monitor-info {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: #f0f9ff;
+  border-radius: 8px;
+  border-left: 4px solid #3b82f6;
+}
+
+.auto-monitor-info p {
+  margin: 0;
+  color: #1e40af;
+  font-size: 0.9rem;
+  text-align: center;
+  font-weight: 500;
+}
+
+/* Loading States */
+.success-state {
+  text-align: center;
+  padding: 2rem;
+}
+
+.success-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.success-state h3 {
+  color: #059669;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+.success-state p {
+  color: #374151;
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+.monitoring-state {
+  text-align: center;
+  padding: 2rem;
+}
+
+.monitoring-state h3 {
+  color: #1f2937;
+  margin-bottom: 1rem;
+  font-size: 1.3rem;
+}
+
+.monitoring-state p {
+  color: #6b7280;
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+
+.monitoring-state-inline {
+  text-align: center;
+  padding: 1.5rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 2px solid #e2e8f0;
+  margin-top: 1rem;
+}
+
+.monitoring-state-inline h4 {
+  color: #1f2937;
+  margin: 0.5rem 0 1rem 0;
+  font-size: 1.1rem;
+}
+
+.monitoring-state-inline p {
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+  font-size: 0.9rem;
+}
+
+.monitoring-state-inline .loading-spinner {
+  width: 30px;
+  height: 30px;
+  margin: 0 auto 1rem auto;
+}
+
+.monitoring-note {
+  font-size: 0.9rem;
+  font-style: italic;
+  color: #9ca3af;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e5e7eb;
+  border-top: 4px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1.5rem auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 @media (max-width: 480px) {
   .qr-popup {
     padding: 1.5rem;

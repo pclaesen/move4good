@@ -3,6 +3,7 @@ export const CHAIN_CONFIG = {
     chainId: 84532,
     name: 'Base Sepolia',
     rpcUrl: 'https://sepolia.base.org',
+    coinbaseRpcUrl: 'https://api.developer.coinbase.com/rpc/v1/base-sepolia/',
     blockExplorer: 'https://sepolia.basescan.org',
     nativeCurrency: {
       name: 'Ethereum',
@@ -25,8 +26,8 @@ export const TOKEN_CONFIG = {
 
 export const SPONSORSHIP_CONFIG = {
   fixedAmount: {
-    USDC: 5,
-    USDCUnits: 5000000
+    USDC: 0.5,
+    USDCUnits: 500000
   }
 };
 
