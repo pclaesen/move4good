@@ -1,10 +1,10 @@
 // src/app/auth/strava/callback/page.js
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import './callback.css';
 
-export default function StravaCallback() {
+function StravaCallbackComponent() {
   const [status, setStatus] = useState('processing');
   const [error, setError] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
@@ -150,5 +150,22 @@ export default function StravaCallback() {
         {renderContent()}
       </div>
     </div>
+  );
+}
+
+export default function StravaCallback() {
+  return (
+    <Suspense fallback={
+      <div className="callback-page">
+        <div className="callback-container">
+          <div className="callback-content">
+            <div className="spinner"></div>
+            <h2>Loading...</h2>
+          </div>
+        </div>
+      </div>
+    }>
+      <StravaCallbackComponent />
+    </Suspense>
   );
 }

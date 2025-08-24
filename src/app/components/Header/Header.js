@@ -2,7 +2,6 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { supabase } from '../../../lib/supabase-client';
 import './Header.css';
 
 export default function Header() {
@@ -12,39 +11,24 @@ export default function Header() {
   const pathname = usePathname();
 
   useEffect(() => {
-    const checkAuthStatus = async () => {
+    const checkAuthStatus = () => {
       try {
-        // Check Supabase auth first (most reliable)
-        const { data: { user: authUser }, error } = await supabase.auth.getUser();
-        
-        if (authUser && !error) {
-          setIsConnected(true);
-          return;
-        }
-        
-        // Fallback to localStorage check
+        // Check localStorage for Strava user
         const localData = localStorage.getItem('strava_user');
-        setIsConnected(!!localData);
+        if (localData) {
+          const userData = JSON.parse(localData);
+          setIsConnected(userData.connected || false);
+        } else {
+          setIsConnected(false);
+        }
       } catch (err) {
         console.error('Auth check failed:', err);
-        
-        // Clear potentially corrupted localStorage
         localStorage.removeItem('strava_user');
         setIsConnected(false);
       }
     };
 
     checkAuthStatus();
-    
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        setIsConnected(true);
-      } else if (event === 'SIGNED_OUT') {
-        localStorage.removeItem('strava_user');
-        setIsConnected(false);
-      }
-    });
     
     // Listen for storage changes (in case user connects/disconnects in another tab)
     const handleStorageChange = () => {
@@ -55,7 +39,6 @@ export default function Header() {
     window.addEventListener('focus', handleStorageChange);
     
     return () => {
-      subscription.unsubscribe();
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('focus', handleStorageChange);
     };

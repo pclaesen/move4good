@@ -1,6 +1,7 @@
 // src/app/api/auth/strava/token/route.js
 import { NextResponse } from 'next/server';
 import supabase from '@/lib/supabase';
+import { createEmbeddedWallet } from '@/lib/embedded-wallet';
 
 export async function POST(request) {
   try {
@@ -121,39 +122,62 @@ export async function POST(request) {
     if (!existingUser?.auth_user_id) {
       const email = `strava-${tokenResult.athlete.id}@cryptorunner.local`;
       
-      const { error: authError } = await supabase.auth.admin.createUser({
-        id: authUserId,
-        email: email,
-        password: crypto.randomUUID(),
-        email_confirm: true,
-        user_metadata: {
-          strava_athlete_id: tokenResult.athlete.id,
-          provider: 'strava'
-        }
-      });
+      // Check if auth user already exists with this UUID
+      const { data: existingAuthUser } = await supabase.auth.admin.getUserById(authUserId);
+      
+      if (!existingAuthUser.user) {
+        // Create auth user only if it doesn't exist
+        const { error: authError } = await supabase.auth.admin.createUser({
+          id: authUserId,
+          email: email,
+          password: crypto.randomUUID(),
+          email_confirm: true,
+          user_metadata: {
+            strava_athlete_id: tokenResult.athlete.id,
+            provider: 'strava'
+          }
+        });
 
-      if (authError) {
-        console.error('Failed to create auth user:', authError);
-        return NextResponse.json(
-          { error: 'Failed to create user authentication' },
-          { status: 500 }
-        );
+        if (authError && authError.code !== 'email_exists') {
+          console.error('Failed to create auth user:', authError);
+          return NextResponse.json(
+            { error: 'Failed to create user authentication' },
+            { status: 500 }
+          );
+        }
       }
     }
 
     // Calculate token expiration timestamp
     const expiresAt = new Date(Date.now() + (tokenResult.expires_in * 1000));
 
-    // Upsert user data into Supabase with auth_user_id and tokens
+    // Create embedded wallet address for the user
+    console.log('Creating embedded wallet address for user...');
+    const walletResult = await createEmbeddedWallet(tokenResult.athlete.id.toString());
+    
+    if (!walletResult.success) {
+      console.error('Failed to create embedded wallet:', walletResult.error);
+      return NextResponse.json(
+        { error: 'Failed to create user wallet' },
+        { status: 500 }
+      );
+    }
+
+    console.log('Embedded wallet created successfully:', walletResult.walletAddress);
+
+    // Upsert user data into Supabase with auth_user_id, tokens, and wallet address
+    const userData = {
+      id: tokenResult.athlete.id,
+      auth_user_id: authUserId,
+      access_token: tokenResult.access_token,
+      refresh_token: tokenResult.refresh_token,
+      token_expires_at: expiresAt.toISOString(),
+      wallet_address: walletResult.walletAddress,
+    };
+
     const { error: upsertError } = await supabase
       .from('users')
-      .upsert({
-        id: tokenResult.athlete.id,
-        auth_user_id: authUserId,
-        access_token: tokenResult.access_token,
-        refresh_token: tokenResult.refresh_token,
-        token_expires_at: expiresAt.toISOString(),
-      }, {
+      .upsert(userData, {
         onConflict: 'id'
       });
 
@@ -165,29 +189,14 @@ export async function POST(request) {
       );
     }
 
-    // Create a Supabase Auth session for the user with correct redirect URL
+    // Return success and let frontend handle redirect
+    // The dashboard will authenticate using the athlete_id approach which works reliably
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-    const { data: sessionData, error: sessionError } = await supabase.auth.admin.generateLink({
-      type: 'magiclink',
-      email: `strava-${tokenResult.athlete.id}@cryptorunner.local`,
-      options: {
-        redirectTo: `${baseUrl}/dashboard`
-      }
-    });
 
-    if (sessionError) {
-      console.error('Failed to generate auth link:', sessionError);
-      return NextResponse.json(
-        { error: 'Failed to create user session' },
-        { status: 500 }
-      );
-    }
-
-    // Return success with redirect URL (this will contain the auth tokens)
     return NextResponse.json({
       success: true,
-      redirectUrl: sessionData.properties.action_link,
+      redirectUrl: `${baseUrl}/dashboard`,
       athlete: {
         id: tokenResult.athlete.id,
         username: tokenResult.athlete.username,
