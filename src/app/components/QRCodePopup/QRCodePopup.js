@@ -57,7 +57,7 @@ export default function QRCodePopup({ isOpen, onClose, walletAddress, charityNam
     
     const pollForTransaction = async () => {
       try {
-        const response = await fetch(`/api/monitor-transaction?charityAddress=${walletAddress}`);
+        const response = await fetch(`/api/monitor-transaction?walletAddress=${walletAddress}`);
         const data = await response.json();
         
         if (data.found && data.transaction) {

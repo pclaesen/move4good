@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**CryptoRunner** (formerly "Run4Good") is a Next.js charity fundraising app that connects Strava activities to charitable donations. Users authenticate with Strava OAuth, select charities, and automatically collect/pledge donations based on their running activities.
+**Move4Good** is a Next.js charity fundraising app that connects Strava activities to charitable donations. Users authenticate with Strava OAuth, select charities, and automatically collect/pledge donations based on their activities.
 
 ## Common Development Commands
 

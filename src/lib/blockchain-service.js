@@ -64,7 +64,15 @@ export class BlockchainService {
     }
 
     try {
-      const filter = this.usdcContract.filters.Transfer(null, address);
+      // Normalize address to proper checksum format
+      let checksummedAddress;
+      try {
+        checksummedAddress = ethers.getAddress(address);
+      } catch (addressError) {
+        throw new Error(`Invalid wallet address format: ${address}`);
+      }
+      
+      const filter = this.usdcContract.filters.Transfer(null, checksummedAddress);
       const events = await this.usdcContract.queryFilter(filter, fromBlock);
       
       return events.map(event => ({

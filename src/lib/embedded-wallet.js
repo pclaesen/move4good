@@ -21,8 +21,10 @@ export async function createEmbeddedWallet(userId) {
     // Take first 20 bytes (40 hex characters) and ensure it follows Ethereum address rules
     const addressBytes = hash.subarray(0, 20);
     
-    // Convert to hex and add 0x prefix
-    const walletAddress = `0x${addressBytes.toString('hex')}`;
+    // Convert to hex and add 0x prefix, then checksum it
+    const { ethers } = require('ethers');
+    const rawAddress = `0x${addressBytes.toString('hex')}`;
+    const walletAddress = ethers.getAddress(rawAddress); // This returns the checksummed version
     
     // Basic validation - ensure it's a valid Ethereum address format
     if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
