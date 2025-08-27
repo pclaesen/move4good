@@ -149,7 +149,7 @@
   transition: box-shadow 0.3s ease;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .charity-sponsor-card:hover {
@@ -196,6 +196,37 @@
   background: #d1d5db;
   cursor: not-allowed;
   color: #9ca3af;
+}
+
+.qr-btn.disabled {
+  background: #d1d5db;
+  cursor: not-allowed;
+  color: #9ca3af;
+}
+
+/* Charity Actions (dropdown + button) */
+.charity-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-end;
+  min-width: 200px;
+}
+
+.run-distance-select {
+  padding: 0.5rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  background: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.3s ease;
+  width: 100%;
+}
+
+.run-distance-select:focus {
+  outline: none;
+  border-color: #2563eb;
 }
 
 /* Activities Section */

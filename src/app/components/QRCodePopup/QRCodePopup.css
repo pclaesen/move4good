@@ -24,10 +24,12 @@
 .qr-popup-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid #eee;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .qr-popup-header h3 {
@@ -238,6 +240,37 @@
   font-size: 0.9rem;
   font-style: italic;
   color: #9ca3af;
+}
+
+/* Run Distance Styling in Popup */
+.run-commitment {
+  margin: 0.25rem 0 0 0;
+  font-size: 0.9rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.sponsorship-details {
+  background: #f0f9ff;
+  padding: 1rem;
+  border-radius: 6px;
+  margin: 1rem 0;
+  border-left: 4px solid #3b82f6;
+}
+
+.sponsorship-details p {
+  margin: 0.5rem 0;
+  color: #1e40af;
+  font-size: 0.9rem;
+}
+
+.sponsorship-details p:first-child {
+  font-weight: 600;
+}
+
+.sponsorship-details em {
+  color: #6b7280;
+  font-style: italic;
 }
 
 /* Loading Spinner */
