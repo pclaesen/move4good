@@ -3,11 +3,11 @@ import { blockchainService } from '../../../lib/blockchain-service';
 
 export async function POST(request) {
   try {
-    const { charityAddress, transactionHash } = await request.json();
+    const { charityAddress, walletAddress, transactionHash } = await request.json();
 
-    if (!charityAddress && !transactionHash) {
+    if (!charityAddress && !walletAddress && !transactionHash) {
       return NextResponse.json({
-        error: 'Either charityAddress or transactionHash is required'
+        error: 'Either walletAddress, charityAddress, or transactionHash is required'
       }, { status: 400 });
     }
 
@@ -23,9 +23,10 @@ export async function POST(request) {
       return NextResponse.json(result);
     }
 
-    // If charity address provided, check for recent sponsorship payments
-    if (charityAddress) {
-      const result = await blockchainService.checkForSponsorshipPayment(charityAddress);
+    // If wallet address provided (user embedded wallet), check for recent payments
+    const addressToMonitor = walletAddress || charityAddress;
+    if (addressToMonitor) {
+      const result = await blockchainService.checkForSponsorshipPayment(addressToMonitor);
       return NextResponse.json(result);
     }
 
@@ -42,11 +43,12 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const charityAddress = searchParams.get('charityAddress');
+    const walletAddress = searchParams.get('walletAddress');
     const transactionHash = searchParams.get('transactionHash');
 
-    if (!charityAddress && !transactionHash) {
+    if (!charityAddress && !walletAddress && !transactionHash) {
       return NextResponse.json({
-        error: 'Either charityAddress or transactionHash query parameter is required'
+        error: 'Either walletAddress, charityAddress, or transactionHash query parameter is required'
       }, { status: 400 });
     }
 
@@ -66,13 +68,14 @@ export async function GET(request) {
       });
     }
 
-    // Check for recent sponsorship payments to charity address
-    if (charityAddress) {
-      const result = await blockchainService.checkForSponsorshipPayment(charityAddress);
+    // Check for recent payments to the specified wallet address
+    const addressToMonitor = walletAddress || charityAddress;
+    if (addressToMonitor) {
+      const result = await blockchainService.checkForSponsorshipPayment(addressToMonitor);
       return NextResponse.json({
         ...result,
         initialized: true,
-        charityAddress
+        monitoredAddress: addressToMonitor
       });
     }
 

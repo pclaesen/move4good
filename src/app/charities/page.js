@@ -1,11 +1,11 @@
 'use client'
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../lib/supabase-client';
 import Header from '../components/Header/Header';
 import './Charities.css';
 import { CharityForm } from '../components/CharityForm/CharityForm';
 import StravaConnectButton from '../components/StravaConnectButton/StravaConnectButton';
+import { supabase } from '../../lib/supabase-client';
 
 
 function useStravaConnected() {
@@ -13,18 +13,9 @@ function useStravaConnected() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const checkAuth = () => {
       try {
-        // Check Supabase auth first (preferred method)
-        const { data: { user }, error } = await supabase.auth.getUser();
-        
-        if (user && !error) {
-          setConnected(true);
-          setLoading(false);
-          return;
-        }
-        
-        // Fallback to localStorage check (for users who connected via Strava but don't have Supabase session)
+        // Check localStorage for Strava user
         const localData = localStorage.getItem('strava_user');
         if (localData) {
           const userData = JSON.parse(localData);
@@ -47,16 +38,6 @@ function useStravaConnected() {
 
     checkAuth();
     
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        setConnected(true);
-      } else if (event === 'SIGNED_OUT') {
-        localStorage.removeItem('strava_user');
-        setConnected(false);
-      }
-    });
-    
     // Listen for storage changes (in case user connects/disconnects in another tab)
     const handleStorageChange = () => {
       checkAuth();
@@ -66,7 +47,6 @@ function useStravaConnected() {
     window.addEventListener('focus', handleStorageChange);
     
     return () => {
-      subscription.unsubscribe();
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('focus', handleStorageChange);
     };
@@ -91,20 +71,7 @@ export default function Charities() {
     // Load user data if authenticated
     const loadUserData = async () => {
       try {
-        // Check Supabase auth first
-        const { data: { user: authUser }, error } = await supabase.auth.getUser();
-        
-        if (authUser && !error) {
-          // Fetch user data with athlete info
-          const response = await fetch('/api/user');
-          if (response.ok) {
-            const userData = await response.json();
-            setUser(userData);
-            return;
-          }
-        }
-        
-        // Fallback to localStorage check (for users who connected via Strava but don't have Supabase session)
+        // Check localStorage for Strava user
         const localData = localStorage.getItem('strava_user');
         if (localData) {
           const userData = JSON.parse(localData);
@@ -139,40 +106,22 @@ export default function Charities() {
 
       // Load user's charity selections if user is connected
       try {
-        // Check Supabase auth first
-        const { data: { user: authUser }, error } = await supabase.auth.getUser();
-        
-        if (authUser && !error) {
-          const selectionsResponse = await fetch('/api/user-charities');
-          const selectionsData = await selectionsResponse.json();
-          
-          if (selectionsResponse.ok) {
-            const selectedNames = selectionsData.data.map(item => item.charity_name);
-            setSelectedCharities(selectedNames);
-            setHasLoadedInitialSelections(true);
-            return;
-          } else if (selectionsResponse.status !== 404) {
-            console.warn('Failed to load user selections:', selectionsData.error);
-          }
-        }
-        
-        // Fallback check for localStorage user (they can still see charities but selections might not load from API)
+        // Check localStorage for authenticated user (same pattern as dashboard)
         const localData = localStorage.getItem('strava_user');
         if (localData) {
           const userData = JSON.parse(localData);
-          if (userData.connected && userData.athlete) {
-            // Try to load selections even with localStorage auth
-            try {
-              const selectionsResponse = await fetch(`/api/user-charities?athlete_id=${userData.athlete.id}`);
-              const selectionsData = await selectionsResponse.json();
-              
-              if (selectionsResponse.ok) {
-                const selectedNames = selectionsData.data.map(item => item.charity_name);
-                setSelectedCharities(selectedNames);
-                setHasLoadedInitialSelections(true);
-              }
-            } catch (err) {
-              console.warn('Could not load selections for localStorage user:', err);
+          if (userData.connected && userData.athlete && userData.athlete.id) {
+            // Load selections using athlete_id (same as dashboard pattern)
+            const selectionsResponse = await fetch(`/api/user-charities?athlete_id=${userData.athlete.id}`);
+            const selectionsData = await selectionsResponse.json();
+            
+            if (selectionsResponse.ok) {
+              const selectedNames = selectionsData.data.map(item => item.charity_name);
+              setSelectedCharities(selectedNames);
+              setHasLoadedInitialSelections(true);
+              return;
+            } else if (selectionsResponse.status !== 404) {
+              console.warn('Failed to load user selections:', selectionsData.error);
             }
           }
         }

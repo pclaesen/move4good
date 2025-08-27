@@ -68,6 +68,7 @@ export async function GET(request) {
         return NextResponse.json({
           id: userData.id,
           auth_user_id: userData.auth_user_id,
+          wallet_address: userData.wallet_address,
           athlete: {
             id: athleteData.id,
             username: athleteData.username,
@@ -85,6 +86,7 @@ export async function GET(request) {
         return NextResponse.json({
           id: userData.id,
           auth_user_id: userData.auth_user_id,
+          wallet_address: userData.wallet_address,
           athlete: {
             id: userData.id,
             firstname: 'Strava User',
@@ -99,6 +101,7 @@ export async function GET(request) {
       return NextResponse.json({
         id: userData.id,
         auth_user_id: userData.auth_user_id,
+        wallet_address: userData.wallet_address,
         athlete: {
           id: userData.id,
           firstname: 'Strava User',

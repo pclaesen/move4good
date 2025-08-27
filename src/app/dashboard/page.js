@@ -2,7 +2,6 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../lib/supabase-client';
 import Header from '../components/Header/Header';
 import QRCodePopup from '../components/QRCodePopup/QRCodePopup';
 import './dashboard.css';
@@ -19,38 +18,25 @@ export default function Dashboard() {
   });
   const [selectedCharities, setSelectedCharities] = useState([]);
   const [qrPopup, setQrPopup] = useState({ isOpen: false, charity: null });
+  const [userWalletAddress, setUserWalletAddress] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
     // Check if user is authenticated and fetch user data
     const checkAuth = async () => {
       try {
-        // Check Supabase auth first
-        const { data: { user: authUser }, error } = await supabase.auth.getUser();
-        
-        if (authUser && !error) {
-          // Fetch user data with athlete info
-          const response = await fetch('/api/user');
-          if (response.ok) {
-            const userData = await response.json();
-            setUser(userData);
-            fetchActivities(userData);
-            loadSelectedCharities(userData);
-            return;
-          }
-        }
-        
-        // Fallback to localStorage check (for users who connected via Strava but don't have Supabase session)
+        // Primary authentication: Check localStorage for Strava user
         const localData = localStorage.getItem('strava_user');
         if (localData) {
           const userData = JSON.parse(localData);
           if (userData.connected && userData.athlete) {
-            // Try to get enhanced user data from API with athlete_id
+            // Get enhanced user data from API with athlete_id
             try {
               const response = await fetch(`/api/user?athlete_id=${userData.athlete.id}`);
               if (response.ok) {
                 const enhancedUserData = await response.json();
                 setUser(enhancedUserData);
+                setUserWalletAddress(enhancedUserData.wallet_address);
                 fetchActivities(enhancedUserData);
                 loadSelectedCharities(enhancedUserData);
                 return;
@@ -141,10 +127,11 @@ export default function Dashboard() {
 
   const handleDisconnect = async () => {
     try {
-      await supabase.auth.signOut();
+      // Clear localStorage and redirect to home
+      localStorage.removeItem('strava_user');
       router.push('/');
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('Error disconnecting:', error);
       router.push('/');
     }
   };
@@ -258,9 +245,9 @@ export default function Dashboard() {
                     className="qr-btn"
                     onClick={() => handleShowQR({
                       name: charitySelection.charity_name,
-                      address: charitySelection.charities?.donation_address
+                      address: userWalletAddress
                     })}
-                    disabled={!charitySelection.charities?.donation_address}
+                    disabled={!userWalletAddress}
                   >
                     Show QR Code
                   </button>

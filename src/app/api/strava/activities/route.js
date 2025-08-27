@@ -1,7 +1,6 @@
 // src/app/api/strava/activities/route.js
 import { NextResponse } from 'next/server';
 import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase-server';
-import { getValidStravaToken } from '@/lib/strava-token-refresh';
 
 export async function GET(request) {
   try {
@@ -61,85 +60,69 @@ export async function GET(request) {
       );
     }
 
-    // Get a valid access token (refreshing if necessary)
-    const accessToken = await getValidStravaToken(userData);
-    
-    // Fetch activities from Strava API
-    const activitiesUrl = 'https://www.strava.com/api/v3/athlete/activities';
-    const params = new URLSearchParams({
-      page: '1',
-      per_page: '30' // Get last 30 activities
-    });
+    // Fetch activities from local database instead of Strava API
+    console.log('Fetching activities from local database...');
 
-    console.log('Fetching activities from Strava API...');
+    const { data: activities, error: activitiesError } = await adminSupabase
+      .from('activities')
+      .select('*')
+      .eq('athlete_id', userData.id)
+      .eq('is_deleted', false)
+      .order('start_date', { ascending: false })
+      .limit(30);
 
-    const response = await fetch(`${activitiesUrl}?${params}`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      console.error('Strava API error:', {
-        status: response.status,
-        statusText: response.statusText
-      });
-
-      if (response.status === 401) {
-        return NextResponse.json(
-          { error: 'Invalid or expired access token' },
-          { status: 401 }
-        );
-      }
-
+    if (activitiesError) {
+      console.error('Database error fetching activities:', activitiesError);
       return NextResponse.json(
-        { error: 'Failed to fetch activities from Strava' },
-        { status: response.status }
+        { error: 'Failed to fetch activities from database' },
+        { status: 500 }
       );
     }
 
-    const activities = await response.json();
-    
-    // Filter and format the activities
-    const formattedActivities = activities.map(activity => ({
-      id: activity.id,
-      name: activity.name,
-      type: activity.type,
-      distance: activity.distance, // in meters
-      moving_time: activity.moving_time, // in seconds
-      elapsed_time: activity.elapsed_time,
-      total_elevation_gain: activity.total_elevation_gain,
-      start_date: activity.start_date,
-      start_date_local: activity.start_date_local,
-      timezone: activity.timezone,
-      average_speed: activity.average_speed,
-      max_speed: activity.max_speed,
-      average_heartrate: activity.average_heartrate,
-      max_heartrate: activity.max_heartrate,
-      location_city: activity.location_city,
-      location_state: activity.location_state,
-      location_country: activity.location_country,
-      kudos_count: activity.kudos_count,
-      comment_count: activity.comment_count,
-      athlete_count: activity.athlete_count,
-      photo_count: activity.photo_count,
-      map: activity.map,
-      trainer: activity.trainer,
-      commute: activity.commute,
-      manual: activity.manual,
-      private: activity.private,
-      visibility: activity.visibility,
-      flagged: activity.flagged,
-      gear_id: activity.gear_id,
-      start_latlng: activity.start_latlng,
-      end_latlng: activity.end_latlng,
-      achievement_count: activity.achievement_count,
-      pr_count: activity.pr_count,
-      suffer_score: activity.suffer_score,
-    }));
+    // Format activities from database
+    const formattedActivities = activities.map(activity => {
+      // Use stored activity data if available, otherwise use direct fields
+      const activityData = activity.activity_data || {};
+      
+      return {
+        id: activity.id,
+        name: activity.name || activityData.name,
+        type: activity.type || activityData.type,
+        distance: activity.distance || activityData.distance,
+        moving_time: activity.moving_time || activityData.moving_time,
+        elapsed_time: activityData.elapsed_time,
+        total_elevation_gain: activityData.total_elevation_gain,
+        start_date: activity.start_date || activityData.start_date,
+        start_date_local: activityData.start_date_local,
+        timezone: activityData.timezone,
+        average_speed: activityData.average_speed,
+        max_speed: activityData.max_speed,
+        average_heartrate: activityData.average_heartrate,
+        max_heartrate: activityData.max_heartrate,
+        location_city: activityData.location_city,
+        location_state: activityData.location_state,
+        location_country: activityData.location_country,
+        kudos_count: activityData.kudos_count,
+        comment_count: activityData.comment_count,
+        athlete_count: activityData.athlete_count,
+        photo_count: activityData.photo_count,
+        map: activityData.map,
+        trainer: activityData.trainer,
+        commute: activityData.commute,
+        manual: activityData.manual,
+        private: activityData.private,
+        visibility: activityData.visibility,
+        flagged: activityData.flagged,
+        gear_id: activityData.gear_id,
+        start_latlng: activityData.start_latlng,
+        end_latlng: activityData.end_latlng,
+        achievement_count: activityData.achievement_count,
+        pr_count: activityData.pr_count,
+        suffer_score: activityData.suffer_score,
+      };
+    });
 
-    console.log(`Successfully fetched ${formattedActivities.length} activities`);
+    console.log(`Successfully fetched ${formattedActivities.length} activities from database`);
 
     return NextResponse.json(formattedActivities);
 

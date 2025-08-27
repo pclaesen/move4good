@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**CryptoRunner** (formerly "Run4Good") is a Next.js charity fundraising app that connects Strava activities to charitable donations. Users authenticate with Strava OAuth, select charities, and automatically collect/pledge donations based on their running activities.
+**Move4Good** is a Next.js charity fundraising app that connects Strava activities to charitable donations. Users authenticate with Strava OAuth, select charities, and automatically collect/pledge donations based on their activities.
 
 ## Common Development Commands
 
@@ -40,7 +40,9 @@ npm run lint
 
 ### Critical API Routes
 - `api/auth/strava/token/route.js` - Handles Strava OAuth token exchange and user creation
-- `api/strava/activities/route.js` - Fetches user activities from Strava API
+- `api/strava/activities/route.js` - Fetches user activities from local database
+- `api/strava/webhooks/callback/route.js` - Handles Strava webhook events and validation
+- `api/strava/webhooks/subscribe/route.js` - Creates and manages webhook subscriptions
 - `api/supabase/route.js` - General Supabase database operations
 
 ### Environment Variables Required
@@ -50,6 +52,7 @@ NEXT_PUBLIC_STRAVA_CLIENT_ID
 STRAVA_CLIENT_SECRET
 NEXT_PUBLIC_SUPABASE_URL
 SUPABASE_SECRET_KEY
+STRAVA_WEBHOOK_VERIFY_TOKEN      # Random token for webhook validation
 
 # Optional - for custom URLs (auto-detected if not provided)
 NEXT_PUBLIC_STRAVA_REDIRECT_URI  # Defaults to {current_origin}/auth/strava/callback
@@ -65,11 +68,13 @@ NEXT_PUBLIC_SITE_URL             # Defaults to localhost:3000 or Vercel URL
 1. User authenticates via Strava OAuth
 2. Authorization code exchanged for access token at `/api/auth/strava/token`
 3. User data upserted to Supabase `users` table using athlete id as ID
-4. Activities fetched from Strava API using Bearer token authentication
-5. Activities filtered and formatted for app consumption
+4. Webhook subscription created to receive real-time activity events
+5. Activities automatically stored in local database via webhook events
+6. Dashboard reads activities from local database for fast performance
 
 ### Database Schema
 - Users table with `id` (int8 - primary key)field (using Strava athlete id) and auth_user_id (uuid)
+- Activities table with `id` (bigint, PK), `athlete_id` (FK), activity data, and indexing for fast user queries
 - Charities table with `name` (primary key), `description`and `donation_address`
 - Junction table `users_charities` to link charities and users
 - Supabase client configured with service role key for server-side operations
