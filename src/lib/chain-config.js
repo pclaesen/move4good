@@ -26,8 +26,8 @@ export const TOKEN_CONFIG = {
 
 export const SPONSORSHIP_CONFIG = {
   fixedAmount: {
-    USDC: 0.5,
-    USDCUnits: 500000
+    USDC: 0.01,
+    USDCUnits: 10000
   }
 };
 

@@ -5,6 +5,7 @@ import Header from '../components/Header/Header';
 import './Charities.css';
 import { CharityForm } from '../components/CharityForm/CharityForm';
 import StravaConnectButton from '../components/StravaConnectButton/StravaConnectButton';
+import { supabase } from '../../lib/supabase-client';
 
 
 function useStravaConnected() {
@@ -105,40 +106,22 @@ export default function Charities() {
 
       // Load user's charity selections if user is connected
       try {
-        // Check Supabase auth first
-        const { data: { user: authUser }, error } = await supabase.auth.getUser();
-        
-        if (authUser && !error) {
-          const selectionsResponse = await fetch('/api/user-charities');
-          const selectionsData = await selectionsResponse.json();
-          
-          if (selectionsResponse.ok) {
-            const selectedNames = selectionsData.data.map(item => item.charity_name);
-            setSelectedCharities(selectedNames);
-            setHasLoadedInitialSelections(true);
-            return;
-          } else if (selectionsResponse.status !== 404) {
-            console.warn('Failed to load user selections:', selectionsData.error);
-          }
-        }
-        
-        // Fallback check for localStorage user (they can still see charities but selections might not load from API)
+        // Check localStorage for authenticated user (same pattern as dashboard)
         const localData = localStorage.getItem('strava_user');
         if (localData) {
           const userData = JSON.parse(localData);
-          if (userData.connected && userData.athlete) {
-            // Try to load selections even with localStorage auth
-            try {
-              const selectionsResponse = await fetch(`/api/user-charities?athlete_id=${userData.athlete.id}`);
-              const selectionsData = await selectionsResponse.json();
-              
-              if (selectionsResponse.ok) {
-                const selectedNames = selectionsData.data.map(item => item.charity_name);
-                setSelectedCharities(selectedNames);
-                setHasLoadedInitialSelections(true);
-              }
-            } catch (err) {
-              console.warn('Could not load selections for localStorage user:', err);
+          if (userData.connected && userData.athlete && userData.athlete.id) {
+            // Load selections using athlete_id (same as dashboard pattern)
+            const selectionsResponse = await fetch(`/api/user-charities?athlete_id=${userData.athlete.id}`);
+            const selectionsData = await selectionsResponse.json();
+            
+            if (selectionsResponse.ok) {
+              const selectedNames = selectionsData.data.map(item => item.charity_name);
+              setSelectedCharities(selectedNames);
+              setHasLoadedInitialSelections(true);
+              return;
+            } else if (selectionsResponse.status !== 404) {
+              console.warn('Failed to load user selections:', selectionsData.error);
             }
           }
         }

@@ -137,7 +137,7 @@ export default function QRCodePopup({ isOpen, onClose, walletAddress, charityNam
               <div className="success-icon">✅</div>
               <h3>Payment Received!</h3>
               <p>Thank you for sponsoring {charityName}!</p>
-              <p>Your 0.5 USDC donation has been confirmed on the blockchain.</p>
+              <p>Your 0.01 USDC donation has been confirmed on the blockchain.</p>
             </div>
           ) : (
             <>
@@ -165,7 +165,7 @@ export default function QRCodePopup({ isOpen, onClose, walletAddress, charityNam
                 <div className="monitoring-state-inline">
                   <div className="loading-spinner"></div>
                   <h4>Waiting for Payment</h4>
-                  <p>Monitoring the blockchain for your 5 USDC transaction.</p>
+                  <p>Monitoring the blockchain for your 0.01 USDC transaction.</p>
                   <p className="monitoring-note">This popup will close automatically when payment is confirmed.</p>
                 </div>
               ) : (
