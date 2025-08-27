@@ -12,7 +12,7 @@ const TRANSACTION_STATES = {
   FAILED: 'failed'
 };
 
-export default function QRCodePopup({ isOpen, onClose, walletAddress, charityName }) {
+export default function QRCodePopup({ isOpen, onClose, walletAddress, charityName, runDistance }) {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [transactionState, setTransactionState] = useState(TRANSACTION_STATES.IDLE);
   const popupRef = useRef(null);
@@ -128,6 +128,9 @@ export default function QRCodePopup({ isOpen, onClose, walletAddress, charityNam
       <div className="qr-popup" ref={popupRef}>
         <div className="qr-popup-header">
           <h3>Sponsor {charityName}</h3>
+          {runDistance && (
+            <p className="run-commitment">Commitment: {runDistance.label}</p>
+          )}
           <button className="close-btn" onClick={onClose}>&times;</button>
         </div>
         
@@ -137,6 +140,9 @@ export default function QRCodePopup({ isOpen, onClose, walletAddress, charityNam
               <div className="success-icon">✅</div>
               <h3>Payment Received!</h3>
               <p>Thank you for sponsoring {charityName}!</p>
+              {runDistance && (
+                <p>You're now sponsoring a <strong>{runDistance.label}</strong> for this charity.</p>
+              )}
               <p>Your 0.01 USDC donation has been confirmed on the blockchain.</p>
             </div>
           ) : (
@@ -166,6 +172,9 @@ export default function QRCodePopup({ isOpen, onClose, walletAddress, charityNam
                   <div className="loading-spinner"></div>
                   <h4>Waiting for Payment</h4>
                   <p>Monitoring the blockchain for your 0.01 USDC transaction.</p>
+                  {runDistance && (
+                    <p>Sponsoring: <strong>{runDistance.label}</strong></p>
+                  )}
                   <p className="monitoring-note">This popup will close automatically when payment is confirmed.</p>
                 </div>
               ) : (
@@ -177,6 +186,12 @@ export default function QRCodePopup({ isOpen, onClose, walletAddress, charityNam
                     <li>Confirm the transaction details</li>
                     <li>Complete the payment</li>
                   </ol>
+                  {runDistance && (
+                    <div className="sponsorship-details">
+                      <p><strong>You're sponsoring:</strong> {runDistance.label}</p>
+                      <p><em>{runDistance.description}</em></p>
+                    </div>
+                  )}
                   <p className="note">
                     Make sure you're connected to Base Sepolia network in your wallet.
                   </p>

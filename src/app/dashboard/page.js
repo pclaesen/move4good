@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../components/Header/Header';
 import QRCodePopup from '../components/QRCodePopup/QRCodePopup';
+import { RUN_DISTANCE_OPTIONS, DEFAULT_RUN_OPTION } from '../../lib/run-options';
 import './dashboard.css';
 
 export default function Dashboard() {
@@ -17,8 +18,9 @@ export default function Dashboard() {
     totalTime: 0
   });
   const [selectedCharities, setSelectedCharities] = useState([]);
-  const [qrPopup, setQrPopup] = useState({ isOpen: false, charity: null });
+  const [qrPopup, setQrPopup] = useState({ isOpen: false, charity: null, runDistance: null });
   const [userWalletAddress, setUserWalletAddress] = useState(null);
+  const [runDistanceSelections, setRunDistanceSelections] = useState({});
   const router = useRouter();
 
   useEffect(() => {
@@ -150,12 +152,19 @@ export default function Dashboard() {
     });
   };
 
-  const handleShowQR = (charity) => {
-    setQrPopup({ isOpen: true, charity });
+  const handleShowQR = (charity, runDistance) => {
+    setQrPopup({ isOpen: true, charity, runDistance });
+  };
+
+  const handleRunDistanceChange = (charityName, selectedValue) => {
+    setRunDistanceSelections(prev => ({
+      ...prev,
+      [charityName]: selectedValue
+    }));
   };
 
   const handleCloseQR = () => {
-    setQrPopup({ isOpen: false, charity: null });
+    setQrPopup({ isOpen: false, charity: null, runDistance: null });
   };
 
   if (loading) {
@@ -233,26 +242,46 @@ export default function Dashboard() {
             <h2>Get Sponsored for Your Charities</h2>
             <p>Share these QR codes with sponsors who want to support your running for these causes.</p>
             <div className="charities-grid">
-              {selectedCharities.map((charitySelection) => (
-                <div key={charitySelection.charity_name} className="charity-sponsor-card">
-                  <div className="charity-info">
-                    <h3>{charitySelection.charity_name}</h3>
-                    {charitySelection.charities?.description && (
-                      <p className="charity-description">{charitySelection.charities.description}</p>
-                    )}
+              {selectedCharities.map((charitySelection) => {
+                const selectedRunDistance = runDistanceSelections[charitySelection.charity_name] || '';
+                const runOption = RUN_DISTANCE_OPTIONS.find(option => option.value === selectedRunDistance);
+                const isQREnabled = userWalletAddress && selectedRunDistance;
+                
+                return (
+                  <div key={charitySelection.charity_name} className="charity-sponsor-card">
+                    <div className="charity-info">
+                      <h3>{charitySelection.charity_name}</h3>
+                      {charitySelection.charities?.description && (
+                        <p className="charity-description">{charitySelection.charities.description}</p>
+                      )}
+                    </div>
+                    <div className="charity-actions">
+                      <select 
+                        className="run-distance-select"
+                        value={selectedRunDistance}
+                        onChange={(e) => handleRunDistanceChange(charitySelection.charity_name, e.target.value)}
+                      >
+                        <option value="">{DEFAULT_RUN_OPTION.label}</option>
+                        {RUN_DISTANCE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button 
+                        className={`qr-btn ${!isQREnabled ? 'disabled' : ''}`}
+                        onClick={() => handleShowQR({
+                          name: charitySelection.charity_name,
+                          address: userWalletAddress
+                        }, runOption)}
+                        disabled={!isQREnabled}
+                      >
+                        Show QR Code
+                      </button>
+                    </div>
                   </div>
-                  <button 
-                    className="qr-btn"
-                    onClick={() => handleShowQR({
-                      name: charitySelection.charity_name,
-                      address: userWalletAddress
-                    })}
-                    disabled={!userWalletAddress}
-                  >
-                    Show QR Code
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -306,6 +335,7 @@ export default function Dashboard() {
         onClose={handleCloseQR}
         walletAddress={qrPopup.charity?.address}
         charityName={qrPopup.charity?.name}
+        runDistance={qrPopup.runDistance}
       />
     </div>
   );
