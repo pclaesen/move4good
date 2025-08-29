@@ -3,11 +3,13 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request) {
   try {
-    const { callback_url } = await request.json();
+    // Get callback URL from request body or environment variable
+    const body = await request.json().catch(() => ({}));
+    const callback_url = body.callback_url || `${process.env.NEXT_PUBLIC_WEBHOOK_URL}/api/strava/webhooks/callback`;
     
     if (!callback_url) {
       return NextResponse.json(
-        { error: 'callback_url is required' },
+        { error: 'callback_url is required and NEXT_PUBLIC_WEBHOOK_URL is not set' },
         { status: 400 }
       );
     }
@@ -26,7 +28,8 @@ export async function POST(request) {
       client_id: subscriptionData.client_id,
       callback_url: subscriptionData.callback_url,
       has_secret: !!subscriptionData.client_secret,
-      has_verify_token: !!subscriptionData.verify_token
+      has_verify_token: !!subscriptionData.verify_token,
+      from_env: !body.callback_url
     });
 
     const response = await fetch(subscriptionUrl, {
@@ -130,6 +133,73 @@ export async function GET() {
     return NextResponse.json(
       { 
         error: 'Internal server error while fetching subscriptions',
+        details: error.message
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const subscriptionId = searchParams.get('subscription_id');
+    
+    if (!subscriptionId) {
+      return NextResponse.json(
+        { error: 'subscription_id is required' },
+        { status: 400 }
+      );
+    }
+
+    console.log('Deleting webhook subscription:', subscriptionId);
+
+    // Delete webhook subscription from Strava
+    const deleteUrl = `https://www.strava.com/api/v3/push_subscriptions/${subscriptionId}`;
+    
+    const params = new URLSearchParams({
+      client_id: process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID,
+      client_secret: process.env.STRAVA_CLIENT_SECRET
+    });
+
+    const response = await fetch(`${deleteUrl}?${params}`, {
+      method: 'DELETE',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to delete webhook subscription:', {
+        status: response.status,
+        statusText: response.statusText,
+        response: errorText
+      });
+      
+      return NextResponse.json(
+        { 
+          error: 'Failed to delete webhook subscription',
+          details: errorText,
+          status: response.status
+        },
+        { status: response.status }
+      );
+    }
+
+    console.log('Webhook subscription deleted successfully:', subscriptionId);
+
+    return NextResponse.json({
+      success: true,
+      subscription_id: subscriptionId
+    });
+
+  } catch (error) {
+    console.error('Error deleting webhook subscription:', error);
+    
+    return NextResponse.json(
+      { 
+        error: 'Internal server error during webhook subscription deletion',
         details: error.message
       },
       { status: 500 }

@@ -53,6 +53,7 @@ STRAVA_CLIENT_SECRET
 NEXT_PUBLIC_SUPABASE_URL
 SUPABASE_SECRET_KEY
 STRAVA_WEBHOOK_VERIFY_TOKEN      # Random token for webhook validation
+NEXT_PUBLIC_WEBHOOK_URL          # Base URL for webhook callbacks (e.g., https://yourdomain.com)
 
 # Optional - for custom URLs (auto-detected if not provided)
 NEXT_PUBLIC_STRAVA_REDIRECT_URI  # Defaults to {current_origin}/auth/strava/callback
