@@ -113,7 +113,7 @@ function StravaCallbackComponent() {
           <div className="callback-content success">
             <div className="success-icon">✅</div>
             <h2>Successfully Connected!</h2>
-            <p>Welcome to Run4Good, {userInfo?.firstname}!</p>
+            <p>Welcome to Move4Good, {userInfo?.firstname}!</p>
             <div className="user-info">
               <img src={userInfo?.profile} alt="Profile" className="profile-image" />
               <div className="user-details">
