@@ -2,9 +2,15 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase-server';
 import { getValidStravaToken } from '@/lib/strava-token-refresh';
+import webhookLogger from '@/lib/webhook-events-logger';
 
 // GET request for webhook validation
 export async function GET(request) {
+  const eventId = webhookLogger.logEvent('validation', {
+    url: request.url,
+    method: 'GET'
+  });
+
   try {
     const { searchParams } = new URL(request.url);
     const mode = searchParams.get('hub.mode');
@@ -13,9 +19,19 @@ export async function GET(request) {
 
     console.log('Webhook validation request:', { mode, token, challenge });
 
+    webhookLogger.updateEventStatus(eventId, 'processing', null, {
+      validationParams: { mode, token, challenge },
+      hasValidToken: token === process.env.STRAVA_WEBHOOK_VERIFY_TOKEN
+    });
+
     // Verify the webhook subscription
     if (mode === 'subscribe' && token === process.env.STRAVA_WEBHOOK_VERIFY_TOKEN) {
       console.log('Webhook validation successful');
+      
+      webhookLogger.updateEventStatus(eventId, 'success', null, {
+        result: 'validation_passed',
+        challenge: challenge
+      });
       
       return NextResponse.json({
         "hub.challenge": challenge
@@ -26,6 +42,11 @@ export async function GET(request) {
         tokenMatch: token === process.env.STRAVA_WEBHOOK_VERIFY_TOKEN 
       });
       
+      webhookLogger.updateEventStatus(eventId, 'failed', 'Invalid mode or token', {
+        result: 'validation_failed',
+        reason: mode !== 'subscribe' ? 'invalid_mode' : 'invalid_token'
+      });
+      
       return NextResponse.json(
         { error: 'Forbidden' },
         { status: 403 }
@@ -34,6 +55,7 @@ export async function GET(request) {
 
   } catch (error) {
     console.error('Webhook validation error:', error);
+    webhookLogger.updateEventStatus(eventId, 'error', error.message);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -43,23 +65,36 @@ export async function GET(request) {
 
 // POST request for webhook events
 export async function POST(request) {
+  let eventId;
+  
   try {
     const event = await request.json();
     
     console.log('Received webhook event:', event);
 
+    // Log the incoming webhook event
+    eventId = webhookLogger.logEvent('webhook', event, {
+      receivedAt: new Date().toISOString(),
+      userAgent: request.headers.get('user-agent'),
+      contentType: request.headers.get('content-type')
+    });
+
     // Respond immediately to Strava (within 2 seconds)
     const response = NextResponse.json({ success: true });
 
-    // Process the event asynchronously
-    processWebhookEvent(event).catch(error => {
+    // Process the event asynchronously with logging
+    processWebhookEvent(event, eventId).catch(error => {
       console.error('Error processing webhook event:', error);
+      webhookLogger.updateEventStatus(eventId, 'error', error.message);
     });
 
     return response;
 
   } catch (error) {
     console.error('Webhook event error:', error);
+    if (eventId) {
+      webhookLogger.updateEventStatus(eventId, 'error', error.message);
+    }
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -68,7 +103,7 @@ export async function POST(request) {
 }
 
 // Async function to process webhook events
-async function processWebhookEvent(event) {
+async function processWebhookEvent(event, eventId) {
   const adminSupabase = createSupabaseAdminClient();
   
   try {
@@ -80,12 +115,27 @@ async function processWebhookEvent(event) {
       event_time 
     } = event;
 
+    webhookLogger.updateEventStatus(eventId, 'processing', null, {
+      eventDetails: { object_type, object_id, aspect_type, owner_id, event_time }
+    });
+
     // Only process activity events
     if (object_type !== 'activity') {
       if (object_type === 'athlete' && aspect_type === 'update') {
         console.log('Athlete deauthorization event for athlete:', owner_id);
+        webhookLogger.updateEventStatus(eventId, 'processing', null, {
+          eventType: 'athlete_deauthorization'
+        });
         // Handle athlete deauthorization by cleaning up data
-        await handleAthleteDeauthorization(owner_id);
+        await handleAthleteDeauthorization(owner_id, eventId);
+        webhookLogger.updateEventStatus(eventId, 'success', null, {
+          result: 'athlete_deauthorization_completed'
+        });
+      } else {
+        webhookLogger.updateEventStatus(eventId, 'skipped', null, {
+          reason: 'non_activity_event',
+          objectType: object_type
+        });
       }
       return;
     }
@@ -99,36 +149,47 @@ async function processWebhookEvent(event) {
       .eq('id', owner_id)
       .single();
 
+    webhookLogger.logDatabaseOperation(eventId, 'fetch_user', userData, userError);
+
     if (userError || !userData) {
       console.error('User not found for athlete:', owner_id, userError);
+      webhookLogger.updateEventStatus(eventId, 'failed', 'User not found', {
+        athleteId: owner_id,
+        userError: userError?.message
+      });
       return;
     }
 
     // Handle different event types
     switch (aspect_type) {
       case 'create':
-        await handleActivityCreate(object_id, owner_id, userData, event_time);
+        await handleActivityCreate(object_id, owner_id, userData, event_time, eventId);
         break;
       
       case 'update':
-        await handleActivityUpdate(object_id, owner_id, userData, event_time);
+        await handleActivityUpdate(object_id, owner_id, userData, event_time, eventId);
         break;
         
       case 'delete':
-        await handleActivityDelete(object_id, owner_id, event_time);
+        await handleActivityDelete(object_id, owner_id, event_time, eventId);
         break;
         
       default:
         console.log('Unhandled aspect_type:', aspect_type);
+        webhookLogger.updateEventStatus(eventId, 'skipped', null, {
+          reason: 'unhandled_aspect_type',
+          aspectType: aspect_type
+        });
     }
 
   } catch (error) {
     console.error('Error in processWebhookEvent:', error);
+    webhookLogger.updateEventStatus(eventId, 'error', error.message);
   }
 }
 
 // Handle new activity creation
-async function handleActivityCreate(activityId, athleteId, userData, eventTime) {
+async function handleActivityCreate(activityId, athleteId, userData, eventTime, eventId) {
   const adminSupabase = createSupabaseAdminClient();
   
   try {
@@ -145,10 +206,17 @@ async function handleActivityCreate(activityId, athleteId, userData, eventTime) 
 
     if (!activityResponse.ok) {
       console.error('Failed to fetch activity details:', activityResponse.status);
+      webhookLogger.updateEventStatus(eventId, 'failed', 'Failed to fetch activity from Strava API', {
+        stravaApiStatus: activityResponse.status,
+        activityId
+      });
       return;
     }
 
     const activityData = await activityResponse.json();
+    
+    // Log the raw activity data from Strava
+    webhookLogger.logActivityData(eventId, activityData, 'strava-api');
     
     // Store activity in database
     const { error: insertError } = await adminSupabase
@@ -167,19 +235,36 @@ async function handleActivityCreate(activityId, athleteId, userData, eventTime) 
         updated_at: new Date().toISOString()
       });
 
+    webhookLogger.logDatabaseOperation(eventId, 'insert_activity', { activityId }, insertError);
+
     if (insertError) {
       console.error('Failed to insert activity:', insertError);
+      webhookLogger.updateEventStatus(eventId, 'failed', 'Database insert failed', {
+        insertError: insertError.message,
+        activityId
+      });
     } else {
       console.log('Successfully stored new activity:', activityId);
+      webhookLogger.updateEventStatus(eventId, 'success', null, {
+        result: 'activity_created',
+        activityId,
+        activityType: activityData.type,
+        activityName: activityData.name,
+        distance: activityData.distance
+      });
     }
 
   } catch (error) {
     console.error('Error handling activity create:', error);
+    webhookLogger.updateEventStatus(eventId, 'error', error.message, {
+      operation: 'handleActivityCreate',
+      activityId
+    });
   }
 }
 
 // Handle activity updates
-async function handleActivityUpdate(activityId, athleteId, userData, eventTime) {
+async function handleActivityUpdate(activityId, athleteId, userData, eventTime, eventId) {
   const adminSupabase = createSupabaseAdminClient();
   
   try {
@@ -196,10 +281,17 @@ async function handleActivityUpdate(activityId, athleteId, userData, eventTime) 
 
     if (!activityResponse.ok) {
       console.error('Failed to fetch updated activity details:', activityResponse.status);
+      webhookLogger.updateEventStatus(eventId, 'failed', 'Failed to fetch updated activity from Strava API', {
+        stravaApiStatus: activityResponse.status,
+        activityId
+      });
       return;
     }
 
     const activityData = await activityResponse.json();
+    
+    // Log the updated activity data from Strava
+    webhookLogger.logActivityData(eventId, activityData, 'strava-api-update');
     
     // Update activity in database
     const { error: updateError } = await adminSupabase
@@ -216,19 +308,36 @@ async function handleActivityUpdate(activityId, athleteId, userData, eventTime) 
       .eq('id', activityId)
       .eq('athlete_id', athleteId);
 
+    webhookLogger.logDatabaseOperation(eventId, 'update_activity', { activityId }, updateError);
+
     if (updateError) {
       console.error('Failed to update activity:', updateError);
+      webhookLogger.updateEventStatus(eventId, 'failed', 'Database update failed', {
+        updateError: updateError.message,
+        activityId
+      });
     } else {
       console.log('Successfully updated activity:', activityId);
+      webhookLogger.updateEventStatus(eventId, 'success', null, {
+        result: 'activity_updated',
+        activityId,
+        activityType: activityData.type,
+        activityName: activityData.name,
+        distance: activityData.distance
+      });
     }
 
   } catch (error) {
     console.error('Error handling activity update:', error);
+    webhookLogger.updateEventStatus(eventId, 'error', error.message, {
+      operation: 'handleActivityUpdate',
+      activityId
+    });
   }
 }
 
 // Handle activity deletion
-async function handleActivityDelete(activityId, athleteId, eventTime) {
+async function handleActivityDelete(activityId, athleteId, eventTime, eventId) {
   const adminSupabase = createSupabaseAdminClient();
   
   try {
@@ -242,19 +351,33 @@ async function handleActivityDelete(activityId, athleteId, eventTime) {
       .eq('id', activityId)
       .eq('athlete_id', athleteId);
 
+    webhookLogger.logDatabaseOperation(eventId, 'soft_delete_activity', { activityId }, deleteError);
+
     if (deleteError) {
       console.error('Failed to delete activity:', deleteError);
+      webhookLogger.updateEventStatus(eventId, 'failed', 'Database soft delete failed', {
+        deleteError: deleteError.message,
+        activityId
+      });
     } else {
       console.log('Successfully marked activity as deleted:', activityId);
+      webhookLogger.updateEventStatus(eventId, 'success', null, {
+        result: 'activity_deleted',
+        activityId
+      });
     }
 
   } catch (error) {
     console.error('Error handling activity delete:', error);
+    webhookLogger.updateEventStatus(eventId, 'error', error.message, {
+      operation: 'handleActivityDelete',
+      activityId
+    });
   }
 }
 
 // Handle athlete deauthorization
-async function handleAthleteDeauthorization(athleteId) {
+async function handleAthleteDeauthorization(athleteId, eventId) {
   const adminSupabase = createSupabaseAdminClient();
   
   try {
@@ -266,6 +389,8 @@ async function handleAthleteDeauthorization(athleteId) {
         updated_at: new Date().toISOString()
       })
       .eq('athlete_id', athleteId);
+
+    webhookLogger.logDatabaseOperation(eventId, 'deauth_delete_activities', { athleteId }, activitiesError);
 
     if (activitiesError) {
       console.error('Failed to delete athlete activities:', activitiesError);
@@ -282,6 +407,8 @@ async function handleAthleteDeauthorization(athleteId) {
       })
       .eq('id', athleteId);
 
+    webhookLogger.logDatabaseOperation(eventId, 'deauth_clean_tokens', { athleteId }, userError);
+
     if (userError) {
       console.error('Failed to clean up user tokens:', userError);
     } else {
@@ -290,5 +417,9 @@ async function handleAthleteDeauthorization(athleteId) {
 
   } catch (error) {
     console.error('Error handling athlete deauthorization:', error);
+    webhookLogger.updateEventStatus(eventId, 'error', error.message, {
+      operation: 'handleAthleteDeauthorization',
+      athleteId
+    });
   }
 }
