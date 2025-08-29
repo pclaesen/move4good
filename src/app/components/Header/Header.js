@@ -76,18 +76,19 @@ export default function Header() {
     // Using the same OAuth configuration from StravaConnectButton
     const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID || 'your_client_id';
     
-    // Build redirect URI dynamically based on current location
+    // Build redirect URI - prioritize environment variables over dynamic detection
     const getRedirectUri = () => {
+      // First priority: explicit redirect URI
       if (process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI) {
         return process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI;
       }
       
-      // Fallback to WEBHOOK_URL or current origin
+      // Second priority: use WEBHOOK_URL (production)
       if (process.env.NEXT_PUBLIC_WEBHOOK_URL) {
         return `${process.env.NEXT_PUBLIC_WEBHOOK_URL}/auth/strava/callback`;
       }
       
-      // Use current origin for dynamic URL detection (development only)
+      // Last resort: current origin (development only)
       const origin = window.location.origin;
       return `${origin}/auth/strava/callback`;
     };
@@ -114,7 +115,7 @@ export default function Header() {
         <div className="container">
           <div className="header-content">
             <div className="logo">
-              <h1>Run4Good</h1>
+              <h1>Move4Good</h1>
             </div>
             <nav className="nav">
               <a 

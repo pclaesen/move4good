@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Run4Good",
+  title: "Move4Good",
   description: "Support charities with your Strava activities",
 };
 

@@ -7,7 +7,7 @@ export default function Footer() {
       <div className="container">
         <div className="footer-content">
           <div className="footer-section">
-            <h3>Run4Good</h3>
+            <h3>Move4Good</h3>
             <p>Turning miles into charitable impact, one run at a time.</p>
           </div>
           <div className="footer-section">
@@ -39,7 +39,7 @@ export default function Footer() {
           </div>
         </div>
         <div className="footer-bottom">
-          <p>&copy; 2025 Run4Good. All rights reserved.</p>
+          <p>&copy; 2025 Move4Good. All rights reserved.</p>
         </div>
       </div>
     </footer>

@@ -49,7 +49,7 @@ yarn install
 
 ## 🤝 Contributing
 
-Want to help make **Run4Good** even better?
+Want to help make **Move4Good** even better?
 
 1. Fork the repo  
 2. Create a new feature branch  
