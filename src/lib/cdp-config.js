@@ -24,5 +24,5 @@ export const CDP_CONFIG = {
 export const APP_CONFIG = {
   appName: 'CryptoRunner',
   appDescription: 'Support charities with your Strava activities',
-  appUrl: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+  appUrl: process.env.NEXT_PUBLIC_WEBHOOK_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
 };
