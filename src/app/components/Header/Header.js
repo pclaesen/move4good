@@ -82,7 +82,12 @@ export default function Header() {
         return process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI;
       }
       
-      // Use current origin for dynamic URL detection
+      // Fallback to WEBHOOK_URL or current origin
+      if (process.env.NEXT_PUBLIC_WEBHOOK_URL) {
+        return `${process.env.NEXT_PUBLIC_WEBHOOK_URL}/auth/strava/callback`;
+      }
+      
+      // Use current origin for dynamic URL detection (development only)
       const origin = window.location.origin;
       return `${origin}/auth/strava/callback`;
     };

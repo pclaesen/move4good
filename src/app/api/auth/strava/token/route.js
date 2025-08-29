@@ -191,7 +191,8 @@ export async function POST(request) {
 
     // Return success and let frontend handle redirect
     // The dashboard will authenticate using the athlete_id approach which works reliably
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 
+    const baseUrl = process.env.NEXT_PUBLIC_WEBHOOK_URL || 
+      process.env.NEXT_PUBLIC_SITE_URL || 
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
     return NextResponse.json({
