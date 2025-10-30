@@ -2,6 +2,7 @@
 'use client';
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase-client';
 import './callback.css';
 
 function StravaCallbackComponent() {
@@ -70,19 +71,31 @@ function StravaCallbackComponent() {
         }
 
         setUserInfo(tokenData.athlete);
+
+        // Establish Supabase session using the tokens from the API
+        if (tokenData.sessionTokens?.tokenHash) {
+          const supabase = createClient();
+
+          // Verify the OTP token to establish a session
+          const { data: sessionData, error: sessionError } = await supabase.auth.verifyOtp({
+            token_hash: tokenData.sessionTokens.tokenHash,
+            type: 'magiclink',
+          });
+
+          if (sessionError) {
+            console.error('Failed to establish session:', sessionError);
+            throw new Error('Failed to create session. Please try again.');
+          }
+
+          console.log('Session established successfully:', sessionData);
+        }
+
         setStatus('success');
 
-        // Store user data in localStorage for client-side authentication checks
-        localStorage.setItem('strava_user', JSON.stringify({
-          athlete: tokenData.athlete,
-          connected: true,
-          connectedAt: new Date().toISOString()
-        }));
-
-        // Redirect to the Supabase Auth URL to establish session
+        // Redirect to dashboard after successful authentication
         setTimeout(() => {
-          window.location.href = tokenData.redirectUrl;
-        }, 3000);
+          router.push('/dashboard');
+        }, 2000);
       } catch (err) {
         console.error('Strava OAuth Error:', err);
         setStatus('error');
