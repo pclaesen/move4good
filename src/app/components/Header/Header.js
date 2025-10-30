@@ -2,6 +2,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { createClient } from '@/lib/supabase-client';
 import { initiateStravaOAuth } from '@/lib/strava-oauth';
 import './Header.css';
 
@@ -12,36 +13,29 @@ export default function Header() {
   const pathname = usePathname();
 
   useEffect(() => {
-    const checkAuthStatus = () => {
+    const checkAuthStatus = async () => {
       try {
-        // Check localStorage for Strava user
-        const localData = localStorage.getItem('strava_user');
-        if (localData) {
-          const userData = JSON.parse(localData);
-          setIsConnected(userData.connected || false);
-        } else {
-          setIsConnected(false);
-        }
+        const supabase = createClient();
+
+        // Check for active Supabase session
+        const { data: { session } } = await supabase.auth.getSession();
+        setIsConnected(!!session);
       } catch (err) {
         console.error('Auth check failed:', err);
-        localStorage.removeItem('strava_user');
         setIsConnected(false);
       }
     };
 
     checkAuthStatus();
-    
-    // Listen for storage changes (in case user connects/disconnects in another tab)
-    const handleStorageChange = () => {
-      checkAuthStatus();
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('focus', handleStorageChange);
-    
+
+    // Listen for auth state changes
+    const supabase = createClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsConnected(!!session);
+    });
+
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('focus', handleStorageChange);
+      subscription.unsubscribe();
     };
   }, []);
 

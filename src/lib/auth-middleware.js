@@ -4,13 +4,15 @@
 import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase-server';
 
 /**
- * Authenticates a request using dual-layer authentication:
- * 1. Primary: Supabase session (auth_user_id)
- * 2. Fallback: athlete_id from query params or request body
+ * Authenticates a request using Supabase session only
+ * This is a secure authentication method that relies on HTTP-only cookies
+ *
+ * SECURITY: This middleware no longer accepts athlete_id from query params or request body
+ * to prevent session hijacking and unauthorized access.
  *
  * @param {Request} request - The Next.js request object
  * @param {Object} options - Optional configuration
- * @param {boolean} options.requireAuth - If true, returns error response when auth fails
+ * @param {boolean} options.requireAuth - If true, returns error response when auth fails (default: true)
  * @param {string} options.selectFields - Fields to select from users table (default: 'id')
  * @returns {Promise<{userData: Object|null, error: Object|null, adminSupabase: Object}>}
  */
@@ -21,7 +23,7 @@ export async function authenticateRequest(request, options = {}) {
 
   let userData = null;
 
-  // Primary authentication: Check Supabase session
+  // Authenticate using Supabase session only
   try {
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
 
@@ -35,47 +37,14 @@ export async function authenticateRequest(request, options = {}) {
 
       if (!userError && userDataFromAuth) {
         userData = userDataFromAuth;
+      } else if (userError) {
+        console.error('Failed to fetch user data:', userError);
       }
+    } else if (authError) {
+      console.error('Supabase auth check failed:', authError);
     }
   } catch (err) {
-    console.error('Supabase auth check failed:', err);
-  }
-
-  // Fallback authentication: Check for athlete_id in query parameters or request body
-  if (!userData) {
-    let athleteId = null;
-
-    // Try to get athlete_id from query params
-    try {
-      const { searchParams } = new URL(request.url);
-      athleteId = searchParams.get('athlete_id');
-    } catch (err) {
-      console.error('Failed to parse URL:', err);
-    }
-
-    // Try to get athlete_id from request body (for POST/PUT/PATCH requests)
-    if (!athleteId && request.method !== 'GET') {
-      try {
-        // Clone the request to read body without consuming it
-        const clonedRequest = request.clone();
-        const body = await clonedRequest.json();
-        athleteId = body.athlete_id;
-      } catch (err) {
-        // Body might not be JSON or already consumed, ignore
-      }
-    }
-
-    if (athleteId) {
-      const { data: userDataFromId, error: userError } = await adminSupabase
-        .from('users')
-        .select(selectFields)
-        .eq('id', athleteId)
-        .single();
-
-      if (!userError && userDataFromId) {
-        userData = userDataFromId;
-      }
-    }
+    console.error('Authentication error:', err);
   }
 
   // Return error if authentication is required but failed

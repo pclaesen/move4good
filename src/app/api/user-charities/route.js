@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { authenticateRequest } from '@/lib/auth-middleware'
+import { userCharitiesSchema, validateRequest } from '@/lib/validation-schemas'
 
 export async function GET(request) {
   try {
@@ -40,13 +41,17 @@ export async function POST(request) {
     }
 
     const body = await request.json()
-    const { charityNames } = body
-    
-    if (!charityNames || !Array.isArray(charityNames)) {
-      return NextResponse.json({ 
-        error: 'Charity names array is required' 
+
+    // Validate request body using Zod schema
+    const validation = validateRequest(userCharitiesSchema, body)
+    if (!validation.success) {
+      return NextResponse.json({
+        error: 'Validation failed',
+        details: validation.errors
       }, { status: 400 })
     }
+
+    const { charityNames } = validation.data
 
     // First, delete existing selections for this user
     const { error: dbDeleteError } = await adminSupabase

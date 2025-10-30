@@ -2,6 +2,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase-client';
 import Header from '../components/Header/Header';
 import QRCodePopup from '../components/QRCodePopup/QRCodePopup';
 import { RUN_DISTANCE_OPTIONS, DEFAULT_RUN_OPTION } from '../../lib/run-options';
@@ -24,39 +25,36 @@ export default function Dashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if user is authenticated and fetch user data
+    // Check if user is authenticated using Supabase session
     const checkAuth = async () => {
       try {
-        // Primary authentication: Check localStorage for Strava user
-        const localData = localStorage.getItem('strava_user');
-        if (localData) {
-          const userData = JSON.parse(localData);
-          if (userData.connected && userData.athlete) {
-            // Get enhanced user data from API with athlete_id
-            try {
-              const response = await fetch(`/api/user?athlete_id=${userData.athlete.id}`);
-              if (response.ok) {
-                const enhancedUserData = await response.json();
-                setUser(enhancedUserData);
-                setUserWalletAddress(enhancedUserData.wallet_address);
-                fetchActivities(enhancedUserData);
-                loadSelectedCharities(enhancedUserData);
-                return;
-              }
-            } catch (err) {
-              console.warn('Could not fetch enhanced user data, using localStorage data');
-            }
-            
-            // Fallback to localStorage data
-            setUser(userData);
-            fetchActivities(userData);
-            loadSelectedCharities(userData);
-            return;
-          }
+        const supabase = createClient();
+
+        // Check for active Supabase session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError || !session) {
+          console.log('No active session, redirecting to home');
+          router.push('/');
+          return;
         }
-        
-        // No authentication found, redirect to home
-        router.push('/');
+
+        // Fetch user data from API using session
+        const response = await fetch('/api/user');
+
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+          setUserWalletAddress(userData.wallet_address);
+          fetchActivities();
+          loadSelectedCharities();
+        } else if (response.status === 401) {
+          console.log('Unauthorized, redirecting to home');
+          router.push('/');
+        } else {
+          console.error('Failed to fetch user data');
+          router.push('/');
+        }
       } catch (err) {
         console.error('Auth check failed:', err);
         router.push('/');
@@ -66,35 +64,25 @@ export default function Dashboard() {
     checkAuth();
   }, [router]);
 
-  const loadSelectedCharities = async (userData = null) => {
+  const loadSelectedCharities = async () => {
     try {
-      const currentUser = userData || user;
-      
-      // Check if we have user data with athlete info
-      if (!currentUser || !currentUser.athlete?.id) return;
-      
-      const response = await fetch(`/api/user-charities?athlete_id=${currentUser.athlete.id}`);
+      // Fetch charities using session authentication only
+      const response = await fetch('/api/user-charities');
       if (response.ok) {
         const data = await response.json();
         setSelectedCharities(data.data || []);
+      } else {
+        console.error('Failed to load charities:', response.status);
       }
     } catch (error) {
       console.error('Failed to load selected charities:', error);
     }
   };
 
-  const fetchActivities = async (userData = null) => {
+  const fetchActivities = async () => {
     try {
-      // Use provided userData or fallback to state
-      const currentUser = userData || user;
-      let apiUrl = '/api/strava/activities';
-      
-      // Add athlete_id for localStorage users or when no Supabase session
-      if (currentUser && currentUser.athlete && currentUser.athlete.id) {
-        apiUrl += `?athlete_id=${currentUser.athlete.id}`;
-      }
-      
-      const response = await fetch(apiUrl);
+      // Fetch activities using session authentication only
+      const response = await fetch('/api/strava/activities');
 
       if (response.ok) {
         const activitiesData = await response.json();
@@ -129,8 +117,12 @@ export default function Dashboard() {
 
   const handleDisconnect = async () => {
     try {
-      // Clear localStorage and redirect to home
-      localStorage.removeItem('strava_user');
+      const supabase = createClient();
+
+      // Sign out from Supabase
+      await supabase.auth.signOut();
+
+      // Redirect to home
       router.push('/');
     } catch (error) {
       console.error('Error disconnecting:', error);

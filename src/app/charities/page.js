@@ -1,11 +1,11 @@
 'use client'
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase-client';
 import Header from '../components/Header/Header';
 import './Charities.css';
 import { CharityForm } from '../components/CharityForm/CharityForm';
 import StravaConnectButton from '../components/StravaConnectButton/StravaConnectButton';
-import { supabase } from '../../lib/supabase-client';
 
 
 function useStravaConnected() {
@@ -13,21 +13,13 @@ function useStravaConnected() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkAuth = () => {
+    const checkAuth = async () => {
       try {
-        // Check localStorage for Strava user
-        const localData = localStorage.getItem('strava_user');
-        if (localData) {
-          const userData = JSON.parse(localData);
-          if (userData.connected && userData.athlete) {
-            setConnected(true);
-            setLoading(false);
-            return;
-          }
-        }
-        
-        // No authentication found
-        setConnected(false);
+        const supabase = createClient();
+
+        // Check for active Supabase session
+        const { data: { session } } = await supabase.auth.getSession();
+        setConnected(!!session);
       } catch (err) {
         console.error('Auth check failed:', err);
         setConnected(false);
@@ -37,18 +29,15 @@ function useStravaConnected() {
     };
 
     checkAuth();
-    
-    // Listen for storage changes (in case user connects/disconnects in another tab)
-    const handleStorageChange = () => {
-      checkAuth();
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('focus', handleStorageChange);
-    
+
+    // Listen for auth state changes
+    const supabase = createClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setConnected(!!session);
+    });
+
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('focus', handleStorageChange);
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -71,13 +60,15 @@ export default function Charities() {
     // Load user data if authenticated
     const loadUserData = async () => {
       try {
-        // Check localStorage for Strava user
-        const localData = localStorage.getItem('strava_user');
-        if (localData) {
-          const userData = JSON.parse(localData);
-          if (userData.connected && userData.athlete) {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (session) {
+          // Fetch user data from API
+          const response = await fetch('/api/user');
+          if (response.ok) {
+            const userData = await response.json();
             setUser(userData);
-            return;
           }
         }
       } catch (err) {
@@ -106,23 +97,21 @@ export default function Charities() {
 
       // Load user's charity selections if user is connected
       try {
-        // Check localStorage for authenticated user (same pattern as dashboard)
-        const localData = localStorage.getItem('strava_user');
-        if (localData) {
-          const userData = JSON.parse(localData);
-          if (userData.connected && userData.athlete && userData.athlete.id) {
-            // Load selections using athlete_id (same as dashboard pattern)
-            const selectionsResponse = await fetch(`/api/user-charities?athlete_id=${userData.athlete.id}`);
-            const selectionsData = await selectionsResponse.json();
-            
-            if (selectionsResponse.ok) {
-              const selectedNames = selectionsData.data.map(item => item.charity_name);
-              setSelectedCharities(selectedNames);
-              setHasLoadedInitialSelections(true);
-              return;
-            } else if (selectionsResponse.status !== 404) {
-              console.warn('Failed to load user selections:', selectionsData.error);
-            }
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (session) {
+          // Load selections using session authentication
+          const selectionsResponse = await fetch('/api/user-charities');
+          const selectionsData = await selectionsResponse.json();
+
+          if (selectionsResponse.ok) {
+            const selectedNames = selectionsData.data.map(item => item.charity_name);
+            setSelectedCharities(selectedNames);
+            setHasLoadedInitialSelections(true);
+            return;
+          } else if (selectionsResponse.status !== 404 && selectionsResponse.status !== 401) {
+            console.warn('Failed to load user selections:', selectionsData.error);
           }
         }
       } catch (authErr) {
@@ -141,21 +130,21 @@ export default function Charities() {
   useEffect(() => {
     // Save charity selections to database when they change
     // Only save after initial selections have been loaded AND user has made explicit changes
-    if (user && user.athlete && user.athlete.id && hasLoadedInitialSelections && userChangedSelections) {
+    if (user && hasLoadedInitialSelections && userChangedSelections) {
       saveCharitySelections();
       setUserChangedSelections(false); // Reset flag after saving
     }
   }, [selectedCharities, user, hasLoadedInitialSelections, userChangedSelections]);
 
   const saveCharitySelections = async () => {
-    if (!user || !user.athlete?.id) return;
-    
+    if (!user) return;
+
     // Extra safety: Don't save empty selections unless user explicitly made changes
     if (selectedCharities.length === 0 && !userChangedSelections) {
       console.warn('Preventing save of empty charity selections without explicit user action');
       return;
     }
-    
+
     try {
       const response = await fetch('/api/user-charities', {
         method: 'POST',
@@ -163,8 +152,7 @@ export default function Charities() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          charityNames: selectedCharities,
-          athlete_id: user.athlete.id
+          charityNames: selectedCharities
         })
       });
 
