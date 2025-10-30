@@ -1,52 +1,17 @@
 import { NextResponse } from 'next/server'
-import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase-server'
+import { authenticateRequest } from '@/lib/auth-middleware'
+import { userCharitiesSchema, validateRequest } from '@/lib/validation-schemas'
 
 export async function GET(request) {
   try {
-    const supabase = await createSupabaseServerClient()
-    const adminSupabase = createSupabaseAdminClient()
-    
-    // Get the authenticated user
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
-    
-    let userData = null;
-    
-    if (authUser && !authError) {
-      // Primary authentication: Supabase session
-      const { data: userDataFromAuth, error: userError } = await adminSupabase
-        .from('users')
-        .select('id')
-        .eq('auth_user_id', authUser.id)
-        .single()
+    // Authenticate request using middleware
+    const { userData, error, adminSupabase } = await authenticateRequest(request)
 
-      if (!userError && userDataFromAuth) {
-        userData = userDataFromAuth;
-      }
-    }
-    
-    // Fallback authentication: Check for athlete_id in query parameters for localStorage users
-    if (!userData) {
-      const { searchParams } = new URL(request.url)
-      const athleteId = searchParams.get('athlete_id')
-      
-      if (athleteId) {
-        const { data: userDataFromId, error: userError } = await adminSupabase
-          .from('users')
-          .select('id')
-          .eq('id', athleteId)
-          .single()
-
-        if (!userError && userDataFromId) {
-          userData = userDataFromId;
-        }
-      }
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
-    if (!userData) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data, error } = await adminSupabase
+    const { data, error: dbError } = await adminSupabase
       .from('users_charities')
       .select(`
         charity_name,
@@ -57,8 +22,8 @@ export async function GET(request) {
         )
       `)
       .eq('user_id', userData.id)
-      
-    if (error) throw error
+
+    if (dbError) throw dbError
     
     return NextResponse.json({ data })
   } catch (error) {
@@ -68,60 +33,33 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const supabase = await createSupabaseServerClient()
-    const adminSupabase = createSupabaseAdminClient()
-    
-    // Get the authenticated user
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
-    
-    let userData = null;
-    
-    if (authUser && !authError) {
-      // Primary authentication: Supabase session
-      const { data: userDataFromAuth, error: userError } = await adminSupabase
-        .from('users')
-        .select('id')
-        .eq('auth_user_id', authUser.id)
-        .single()
+    // Authenticate request using middleware
+    const { userData, error, adminSupabase } = await authenticateRequest(request)
 
-      if (!userError && userDataFromAuth) {
-        userData = userDataFromAuth;
-      }
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
     }
-    
+
     const body = await request.json()
-    const { charityNames, athlete_id } = body
-    
-    // Fallback authentication: Check for athlete_id in request body for localStorage users
-    if (!userData && athlete_id) {
-      const { data: userDataFromId, error: userError } = await adminSupabase
-        .from('users')
-        .select('id')
-        .eq('id', athlete_id)
-        .single()
 
-      if (!userError && userDataFromId) {
-        userData = userDataFromId;
-      }
-    }
-
-    if (!userData) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    
-    if (!charityNames || !Array.isArray(charityNames)) {
-      return NextResponse.json({ 
-        error: 'Charity names array is required' 
+    // Validate request body using Zod schema
+    const validation = validateRequest(userCharitiesSchema, body)
+    if (!validation.success) {
+      return NextResponse.json({
+        error: 'Validation failed',
+        details: validation.errors
       }, { status: 400 })
     }
 
+    const { charityNames } = validation.data
+
     // First, delete existing selections for this user
-    const { error: deleteError } = await adminSupabase
+    const { error: dbDeleteError } = await adminSupabase
       .from('users_charities')
       .delete()
       .eq('user_id', userData.id)
-    
-    if (deleteError) throw deleteError
+
+    if (dbDeleteError) throw dbDeleteError
 
     // Then insert new selections
     if (charityNames.length > 0) {
@@ -130,12 +68,12 @@ export async function POST(request) {
         charity_name: charityName
       }))
 
-      const { data, error: insertError } = await adminSupabase
+      const { data, error: dbInsertError } = await adminSupabase
         .from('users_charities')
         .insert(insertData)
         .select()
-        
-      if (insertError) throw insertError
+
+      if (dbInsertError) throw dbInsertError
       
       return NextResponse.json({ data })
     }
@@ -148,47 +86,11 @@ export async function POST(request) {
 
 export async function DELETE(request) {
   try {
-    const supabase = await createSupabaseServerClient()
-    const adminSupabase = createSupabaseAdminClient()
-    
-    // Get the authenticated user
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
-    
-    let userData = null;
-    
-    if (authUser && !authError) {
-      // Primary authentication: Supabase session
-      const { data: userDataFromAuth, error: userError } = await adminSupabase
-        .from('users')
-        .select('id')
-        .eq('auth_user_id', authUser.id)
-        .single()
+    // Authenticate request using middleware
+    const { userData, error, adminSupabase } = await authenticateRequest(request)
 
-      if (!userError && userDataFromAuth) {
-        userData = userDataFromAuth;
-      }
-    }
-    
-    // Fallback authentication: Check for athlete_id in query parameters for localStorage users
-    if (!userData) {
-      const { searchParams } = new URL(request.url)
-      const athleteId = searchParams.get('athlete_id')
-      
-      if (athleteId) {
-        const { data: userDataFromId, error: userError } = await adminSupabase
-          .from('users')
-          .select('id')
-          .eq('id', athleteId)
-          .single()
-
-        if (!userError && userDataFromId) {
-          userData = userDataFromId;
-        }
-      }
-    }
-
-    if (!userData) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
     const { searchParams } = new URL(request.url)
@@ -203,9 +105,9 @@ export async function DELETE(request) {
       query = query.eq('charity_name', charityName)
     }
 
-    const { data, error } = await query.select()
-      
-    if (error) throw error
+    const { data, error: dbError } = await query.select()
+
+    if (dbError) throw dbError
     
     return NextResponse.json({ data })
   } catch (error) {

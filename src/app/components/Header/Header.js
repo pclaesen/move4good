@@ -2,6 +2,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { createClient } from '@/lib/supabase-client';
+import { initiateStravaOAuth } from '@/lib/strava-oauth';
 import './Header.css';
 
 export default function Header() {
@@ -11,36 +13,29 @@ export default function Header() {
   const pathname = usePathname();
 
   useEffect(() => {
-    const checkAuthStatus = () => {
+    const checkAuthStatus = async () => {
       try {
-        // Check localStorage for Strava user
-        const localData = localStorage.getItem('strava_user');
-        if (localData) {
-          const userData = JSON.parse(localData);
-          setIsConnected(userData.connected || false);
-        } else {
-          setIsConnected(false);
-        }
+        const supabase = createClient();
+
+        // Check for active Supabase session
+        const { data: { session } } = await supabase.auth.getSession();
+        setIsConnected(!!session);
       } catch (err) {
         console.error('Auth check failed:', err);
-        localStorage.removeItem('strava_user');
         setIsConnected(false);
       }
     };
 
     checkAuthStatus();
-    
-    // Listen for storage changes (in case user connects/disconnects in another tab)
-    const handleStorageChange = () => {
-      checkAuthStatus();
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('focus', handleStorageChange);
-    
+
+    // Listen for auth state changes
+    const supabase = createClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsConnected(!!session);
+    });
+
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('focus', handleStorageChange);
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -73,34 +68,8 @@ export default function Header() {
   };
 
   const handleStravaConnect = () => {
-    // Using the same OAuth configuration from StravaConnectButton
-    const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID || 'your_client_id';
-    
-    // Build redirect URI - prioritize environment variables over dynamic detection
-    const getRedirectUri = () => {
-      // First priority: explicit redirect URI
-      if (process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI) {
-        return process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI;
-      }
-      
-      // Second priority: use WEBHOOK_URL (production)
-      if (process.env.NEXT_PUBLIC_WEBHOOK_URL) {
-        return `${process.env.NEXT_PUBLIC_WEBHOOK_URL}/auth/strava/callback`;
-      }
-      
-      // Last resort: current origin (development only)
-      const origin = window.location.origin;
-      return `${origin}/auth/strava/callback`;
-    };
-    
-    const redirectUri = getRedirectUri();
-    const scope = 'read,activity:read_all';
-    
-    // Build Strava authorization URL
-    const stravaAuthUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&approval_prompt=force&scope=${scope}`;
-    
-    // Redirect to Strava authorization
-    window.location.href = stravaAuthUrl;
+    // Use centralized OAuth utility
+    initiateStravaOAuth();
   };
 
   const closeModal = (e) => {

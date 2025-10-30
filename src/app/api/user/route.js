@@ -1,53 +1,16 @@
 import { NextResponse } from 'next/server'
-import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase-server'
+import { authenticateRequest } from '@/lib/auth-middleware'
 import { getValidStravaToken } from '@/lib/strava-token-refresh'
 
 export async function GET(request) {
   try {
-    // Use publishable key client for reading user session
-    const supabase = await createSupabaseServerClient()
-    
-    // Use admin client for database operations requiring elevated privileges
-    const adminSupabase = createSupabaseAdminClient()
-    
-    // Get the authenticated user
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
-    
-    let userData = null;
-    
-    if (authUser && !authError) {
-      // Primary authentication: Supabase session
-      const { data: userDataFromAuth, error: userError } = await adminSupabase
-        .from('users')
-        .select('*')
-        .eq('auth_user_id', authUser.id)
-        .single()
+    // Authenticate request using middleware, selecting all user fields
+    const { userData, error } = await authenticateRequest(request, {
+      selectFields: '*'
+    })
 
-      if (!userError && userDataFromAuth) {
-        userData = userDataFromAuth;
-      }
-    }
-    
-    // Fallback authentication: Check for athlete_id in query parameters for localStorage users
-    if (!userData) {
-      const { searchParams } = new URL(request.url)
-      const athleteId = searchParams.get('athlete_id')
-      
-      if (athleteId) {
-        const { data: userDataFromId, error: userError } = await adminSupabase
-          .from('users')
-          .select('*')
-          .eq('id', athleteId)
-          .single()
-
-        if (!userError && userDataFromId) {
-          userData = userDataFromId;
-        }
-      }
-    }
-
-    if (!userData) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
     // Get a valid access token (refreshing if necessary)

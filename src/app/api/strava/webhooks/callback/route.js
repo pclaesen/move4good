@@ -2,11 +2,11 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase-server';
 import { getValidStravaToken } from '@/lib/strava-token-refresh';
-import webhookLogger from '@/lib/webhook-events-logger';
+import webhookDbLogger from '@/lib/webhook-events-db-logger';
 
 // GET request for webhook validation
 export async function GET(request) {
-  const eventId = webhookLogger.logEvent('validation', {
+  const eventId = await webhookDbLogger.logEvent('validation', {
     url: request.url,
     method: 'GET'
   });
@@ -19,7 +19,7 @@ export async function GET(request) {
 
     console.log('Webhook validation request:', { mode, token, challenge });
 
-    webhookLogger.updateEventStatus(eventId, 'processing', null, {
+    await webhookDbLogger.updateEventStatus(eventId, 'processing', null, {
       validationParams: { mode, token, challenge },
       hasValidToken: token === process.env.STRAVA_WEBHOOK_VERIFY_TOKEN
     });
@@ -27,22 +27,22 @@ export async function GET(request) {
     // Verify the webhook subscription
     if (mode === 'subscribe' && token === process.env.STRAVA_WEBHOOK_VERIFY_TOKEN) {
       console.log('Webhook validation successful');
-      
-      webhookLogger.updateEventStatus(eventId, 'success', null, {
+
+      await webhookDbLogger.updateEventStatus(eventId, 'success', null, {
         result: 'validation_passed',
         challenge: challenge
       });
-      
+
       return NextResponse.json({
         "hub.challenge": challenge
       });
     } else {
-      console.error('Webhook validation failed:', { 
-        mode, 
-        tokenMatch: token === process.env.STRAVA_WEBHOOK_VERIFY_TOKEN 
+      console.error('Webhook validation failed:', {
+        mode,
+        tokenMatch: token === process.env.STRAVA_WEBHOOK_VERIFY_TOKEN
       });
-      
-      webhookLogger.updateEventStatus(eventId, 'failed', 'Invalid mode or token', {
+
+      await webhookDbLogger.updateEventStatus(eventId, 'failed', 'Invalid mode or token', {
         result: 'validation_failed',
         reason: mode !== 'subscribe' ? 'invalid_mode' : 'invalid_token'
       });
@@ -55,7 +55,7 @@ export async function GET(request) {
 
   } catch (error) {
     console.error('Webhook validation error:', error);
-    webhookLogger.updateEventStatus(eventId, 'error', error.message);
+    await webhookDbLogger.updateEventStatus(eventId, 'error', error.message);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -66,14 +66,14 @@ export async function GET(request) {
 // POST request for webhook events
 export async function POST(request) {
   let eventId;
-  
+
   try {
     const event = await request.json();
-    
+
     console.log('Received webhook event:', event);
 
     // Log the incoming webhook event
-    eventId = webhookLogger.logEvent('webhook', event, {
+    eventId = await webhookDbLogger.logEvent('webhook', event, {
       receivedAt: new Date().toISOString(),
       userAgent: request.headers.get('user-agent'),
       contentType: request.headers.get('content-type')
@@ -85,7 +85,7 @@ export async function POST(request) {
     // Process the event asynchronously with logging
     processWebhookEvent(event, eventId).catch(error => {
       console.error('Error processing webhook event:', error);
-      webhookLogger.updateEventStatus(eventId, 'error', error.message);
+      webhookDbLogger.updateEventStatus(eventId, 'error', error.message);
     });
 
     return response;
@@ -93,7 +93,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('Webhook event error:', error);
     if (eventId) {
-      webhookLogger.updateEventStatus(eventId, 'error', error.message);
+      await webhookDbLogger.updateEventStatus(eventId, 'error', error.message);
     }
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -115,7 +115,7 @@ async function processWebhookEvent(event, eventId) {
       event_time 
     } = event;
 
-    webhookLogger.updateEventStatus(eventId, 'processing', null, {
+    webhookDbLogger.updateEventStatus(eventId, 'processing', null, {
       eventDetails: { object_type, object_id, aspect_type, owner_id, event_time }
     });
 
@@ -123,16 +123,16 @@ async function processWebhookEvent(event, eventId) {
     if (object_type !== 'activity') {
       if (object_type === 'athlete' && aspect_type === 'update') {
         console.log('Athlete deauthorization event for athlete:', owner_id);
-        webhookLogger.updateEventStatus(eventId, 'processing', null, {
+        webhookDbLogger.updateEventStatus(eventId, 'processing', null, {
           eventType: 'athlete_deauthorization'
         });
         // Handle athlete deauthorization by cleaning up data
         await handleAthleteDeauthorization(owner_id, eventId);
-        webhookLogger.updateEventStatus(eventId, 'success', null, {
+        webhookDbLogger.updateEventStatus(eventId, 'success', null, {
           result: 'athlete_deauthorization_completed'
         });
       } else {
-        webhookLogger.updateEventStatus(eventId, 'skipped', null, {
+        webhookDbLogger.updateEventStatus(eventId, 'skipped', null, {
           reason: 'non_activity_event',
           objectType: object_type
         });
@@ -149,11 +149,11 @@ async function processWebhookEvent(event, eventId) {
       .eq('id', owner_id)
       .single();
 
-    webhookLogger.logDatabaseOperation(eventId, 'fetch_user', userData, userError);
+    webhookDbLogger.logDatabaseOperation(eventId, 'fetch_user', userData, userError);
 
     if (userError || !userData) {
       console.error('User not found for athlete:', owner_id, userError);
-      webhookLogger.updateEventStatus(eventId, 'failed', 'User not found', {
+      webhookDbLogger.updateEventStatus(eventId, 'failed', 'User not found', {
         athleteId: owner_id,
         userError: userError?.message
       });
@@ -176,7 +176,7 @@ async function processWebhookEvent(event, eventId) {
         
       default:
         console.log('Unhandled aspect_type:', aspect_type);
-        webhookLogger.updateEventStatus(eventId, 'skipped', null, {
+        webhookDbLogger.updateEventStatus(eventId, 'skipped', null, {
           reason: 'unhandled_aspect_type',
           aspectType: aspect_type
         });
@@ -184,7 +184,7 @@ async function processWebhookEvent(event, eventId) {
 
   } catch (error) {
     console.error('Error in processWebhookEvent:', error);
-    webhookLogger.updateEventStatus(eventId, 'error', error.message);
+    webhookDbLogger.updateEventStatus(eventId, 'error', error.message);
   }
 }
 
@@ -206,7 +206,7 @@ async function handleActivityCreate(activityId, athleteId, userData, eventTime, 
 
     if (!activityResponse.ok) {
       console.error('Failed to fetch activity details:', activityResponse.status);
-      webhookLogger.updateEventStatus(eventId, 'failed', 'Failed to fetch activity from Strava API', {
+      webhookDbLogger.updateEventStatus(eventId, 'failed', 'Failed to fetch activity from Strava API', {
         stravaApiStatus: activityResponse.status,
         activityId
       });
@@ -216,7 +216,7 @@ async function handleActivityCreate(activityId, athleteId, userData, eventTime, 
     const activityData = await activityResponse.json();
     
     // Log the raw activity data from Strava
-    webhookLogger.logActivityData(eventId, activityData, 'strava-api');
+    webhookDbLogger.logActivityData(eventId, activityData, 'strava-api');
     
     // Store activity in database
     const { error: insertError } = await adminSupabase
@@ -235,17 +235,17 @@ async function handleActivityCreate(activityId, athleteId, userData, eventTime, 
         updated_at: new Date().toISOString()
       });
 
-    webhookLogger.logDatabaseOperation(eventId, 'insert_activity', { activityId }, insertError);
+    webhookDbLogger.logDatabaseOperation(eventId, 'insert_activity', { activityId }, insertError);
 
     if (insertError) {
       console.error('Failed to insert activity:', insertError);
-      webhookLogger.updateEventStatus(eventId, 'failed', 'Database insert failed', {
+      webhookDbLogger.updateEventStatus(eventId, 'failed', 'Database insert failed', {
         insertError: insertError.message,
         activityId
       });
     } else {
       console.log('Successfully stored new activity:', activityId);
-      webhookLogger.updateEventStatus(eventId, 'success', null, {
+      webhookDbLogger.updateEventStatus(eventId, 'success', null, {
         result: 'activity_created',
         activityId,
         activityType: activityData.type,
@@ -256,7 +256,7 @@ async function handleActivityCreate(activityId, athleteId, userData, eventTime, 
 
   } catch (error) {
     console.error('Error handling activity create:', error);
-    webhookLogger.updateEventStatus(eventId, 'error', error.message, {
+    webhookDbLogger.updateEventStatus(eventId, 'error', error.message, {
       operation: 'handleActivityCreate',
       activityId
     });
@@ -281,7 +281,7 @@ async function handleActivityUpdate(activityId, athleteId, userData, eventTime, 
 
     if (!activityResponse.ok) {
       console.error('Failed to fetch updated activity details:', activityResponse.status);
-      webhookLogger.updateEventStatus(eventId, 'failed', 'Failed to fetch updated activity from Strava API', {
+      webhookDbLogger.updateEventStatus(eventId, 'failed', 'Failed to fetch updated activity from Strava API', {
         stravaApiStatus: activityResponse.status,
         activityId
       });
@@ -291,7 +291,7 @@ async function handleActivityUpdate(activityId, athleteId, userData, eventTime, 
     const activityData = await activityResponse.json();
     
     // Log the updated activity data from Strava
-    webhookLogger.logActivityData(eventId, activityData, 'strava-api-update');
+    webhookDbLogger.logActivityData(eventId, activityData, 'strava-api-update');
     
     // Update activity in database
     const { error: updateError } = await adminSupabase
@@ -308,17 +308,17 @@ async function handleActivityUpdate(activityId, athleteId, userData, eventTime, 
       .eq('id', activityId)
       .eq('athlete_id', athleteId);
 
-    webhookLogger.logDatabaseOperation(eventId, 'update_activity', { activityId }, updateError);
+    webhookDbLogger.logDatabaseOperation(eventId, 'update_activity', { activityId }, updateError);
 
     if (updateError) {
       console.error('Failed to update activity:', updateError);
-      webhookLogger.updateEventStatus(eventId, 'failed', 'Database update failed', {
+      webhookDbLogger.updateEventStatus(eventId, 'failed', 'Database update failed', {
         updateError: updateError.message,
         activityId
       });
     } else {
       console.log('Successfully updated activity:', activityId);
-      webhookLogger.updateEventStatus(eventId, 'success', null, {
+      webhookDbLogger.updateEventStatus(eventId, 'success', null, {
         result: 'activity_updated',
         activityId,
         activityType: activityData.type,
@@ -329,7 +329,7 @@ async function handleActivityUpdate(activityId, athleteId, userData, eventTime, 
 
   } catch (error) {
     console.error('Error handling activity update:', error);
-    webhookLogger.updateEventStatus(eventId, 'error', error.message, {
+    webhookDbLogger.updateEventStatus(eventId, 'error', error.message, {
       operation: 'handleActivityUpdate',
       activityId
     });
@@ -351,17 +351,17 @@ async function handleActivityDelete(activityId, athleteId, eventTime, eventId) {
       .eq('id', activityId)
       .eq('athlete_id', athleteId);
 
-    webhookLogger.logDatabaseOperation(eventId, 'soft_delete_activity', { activityId }, deleteError);
+    webhookDbLogger.logDatabaseOperation(eventId, 'soft_delete_activity', { activityId }, deleteError);
 
     if (deleteError) {
       console.error('Failed to delete activity:', deleteError);
-      webhookLogger.updateEventStatus(eventId, 'failed', 'Database soft delete failed', {
+      webhookDbLogger.updateEventStatus(eventId, 'failed', 'Database soft delete failed', {
         deleteError: deleteError.message,
         activityId
       });
     } else {
       console.log('Successfully marked activity as deleted:', activityId);
-      webhookLogger.updateEventStatus(eventId, 'success', null, {
+      webhookDbLogger.updateEventStatus(eventId, 'success', null, {
         result: 'activity_deleted',
         activityId
       });
@@ -369,7 +369,7 @@ async function handleActivityDelete(activityId, athleteId, eventTime, eventId) {
 
   } catch (error) {
     console.error('Error handling activity delete:', error);
-    webhookLogger.updateEventStatus(eventId, 'error', error.message, {
+    webhookDbLogger.updateEventStatus(eventId, 'error', error.message, {
       operation: 'handleActivityDelete',
       activityId
     });
@@ -390,7 +390,7 @@ async function handleAthleteDeauthorization(athleteId, eventId) {
       })
       .eq('athlete_id', athleteId);
 
-    webhookLogger.logDatabaseOperation(eventId, 'deauth_delete_activities', { athleteId }, activitiesError);
+    webhookDbLogger.logDatabaseOperation(eventId, 'deauth_delete_activities', { athleteId }, activitiesError);
 
     if (activitiesError) {
       console.error('Failed to delete athlete activities:', activitiesError);
@@ -407,7 +407,7 @@ async function handleAthleteDeauthorization(athleteId, eventId) {
       })
       .eq('id', athleteId);
 
-    webhookLogger.logDatabaseOperation(eventId, 'deauth_clean_tokens', { athleteId }, userError);
+    webhookDbLogger.logDatabaseOperation(eventId, 'deauth_clean_tokens', { athleteId }, userError);
 
     if (userError) {
       console.error('Failed to clean up user tokens:', userError);
@@ -417,7 +417,7 @@ async function handleAthleteDeauthorization(athleteId, eventId) {
 
   } catch (error) {
     console.error('Error handling athlete deauthorization:', error);
-    webhookLogger.updateEventStatus(eventId, 'error', error.message, {
+    webhookDbLogger.updateEventStatus(eventId, 'error', error.message, {
       operation: 'handleAthleteDeauthorization',
       athleteId
     });
