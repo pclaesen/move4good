@@ -119,39 +119,39 @@ export async function POST(request) {
       .single();
 
     let sessionTokens = null;
+    const userEmail = `strava-${tokenResult.athlete.id}@cryptorunner.local`;
 
-    // Only create auth user if not exists
-    if (!existingUser?.auth_user_id) {
-      const email = `strava-${tokenResult.athlete.id}@cryptorunner.local`;
+    // ALWAYS check if auth user exists in Supabase auth system
+    // This handles both new users AND existing users who might not have auth user
+    const { data: existingAuthUser } = await supabase.auth.admin.getUserById(authUserId);
 
-      // Check if auth user already exists with this UUID
-      const { data: existingAuthUser } = await supabase.auth.admin.getUserById(authUserId);
-
-      if (!existingAuthUser.user) {
-        // Create auth user only if it doesn't exist
-        const { error: authError } = await supabase.auth.admin.createUser({
-          id: authUserId,
-          email: email,
-          password: crypto.randomUUID(),
-          email_confirm: true,
-          user_metadata: {
-            strava_athlete_id: tokenResult.athlete.id,
-            provider: 'strava'
-          }
-        });
-
-        if (authError && authError.code !== 'email_exists') {
-          console.error('Failed to create auth user:', authError);
-          return NextResponse.json(
-            { error: 'Failed to create user authentication' },
-            { status: 500 }
-          );
+    if (!existingAuthUser.user) {
+      console.log('Auth user does not exist, creating...');
+      // Create auth user if it doesn't exist
+      const { error: authError } = await supabase.auth.admin.createUser({
+        id: authUserId,
+        email: userEmail,
+        password: crypto.randomUUID(),
+        email_confirm: true,
+        user_metadata: {
+          strava_athlete_id: tokenResult.athlete.id,
+          provider: 'strava'
         }
+      });
+
+      if (authError && authError.code !== 'email_exists') {
+        console.error('Failed to create auth user:', authError);
+        return NextResponse.json(
+          { error: 'Failed to create user authentication' },
+          { status: 500 }
+        );
       }
+      console.log('Auth user created successfully');
+    } else {
+      console.log('Auth user already exists:', existingAuthUser.user.email);
     }
 
     // Generate a session for the user using admin.generateLink
-    const userEmail = `strava-${tokenResult.athlete.id}@cryptorunner.local`;
     const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
       type: 'magiclink',
       email: userEmail,
@@ -162,17 +162,41 @@ export async function POST(request) {
 
     if (linkError) {
       console.error('Failed to generate session link:', linkError);
-    } else if (linkData) {
-      // Extract token hash from the generated link
-      // The link format is: .../auth/confirm?token_hash=xxx&type=magiclink
-      const url = new URL(linkData.properties.action_link);
-      const tokenHash = url.searchParams.get('token_hash');
-      sessionTokens = {
-        tokenHash: tokenHash,
-        email: userEmail, // Need email for verifyOtp
-        type: 'magiclink'
-      };
+      // Return error to client so they know what went wrong
+      return NextResponse.json(
+        { error: 'Failed to generate authentication session', details: linkError.message },
+        { status: 500 }
+      );
     }
+
+    if (!linkData || !linkData.properties?.action_link) {
+      console.error('Invalid link data returned from generateLink');
+      return NextResponse.json(
+        { error: 'Invalid authentication response' },
+        { status: 500 }
+      );
+    }
+
+    // Extract token hash from the generated link
+    // The link format is: .../auth/confirm?token_hash=xxx&type=magiclink
+    const url = new URL(linkData.properties.action_link);
+    const tokenHash = url.searchParams.get('token_hash');
+
+    if (!tokenHash) {
+      console.error('No token hash in generated link');
+      return NextResponse.json(
+        { error: 'Failed to generate authentication token' },
+        { status: 500 }
+      );
+    }
+
+    sessionTokens = {
+      tokenHash: tokenHash,
+      email: userEmail, // Need email for verifyOtp
+      type: 'magiclink'
+    };
+
+    console.log('Session tokens generated successfully');
 
     // Calculate token expiration timestamp
     const expiresAt = new Date(Date.now() + (tokenResult.expires_in * 1000));
