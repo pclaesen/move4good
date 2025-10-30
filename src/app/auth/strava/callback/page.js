@@ -73,21 +73,24 @@ function StravaCallbackComponent() {
         setUserInfo(tokenData.athlete);
 
         // Establish Supabase session using the tokens from the API
-        if (tokenData.sessionTokens?.tokenHash) {
+        if (tokenData.sessionTokens?.tokenHash && tokenData.sessionTokens?.email) {
           const supabase = createClient();
 
-          // Verify the OTP token to establish a session
+          // Verify the magic link OTP token to establish a session
           const { data: sessionData, error: sessionError } = await supabase.auth.verifyOtp({
             token_hash: tokenData.sessionTokens.tokenHash,
             type: 'magiclink',
+            email: tokenData.sessionTokens.email,
           });
 
           if (sessionError) {
             console.error('Failed to establish session:', sessionError);
-            throw new Error('Failed to create session. Please try again.');
+            throw new Error(`Failed to create session: ${sessionError.message}`);
           }
 
           console.log('Session established successfully:', sessionData);
+        } else {
+          console.warn('No session tokens provided, user may need to reconnect');
         }
 
         setStatus('success');

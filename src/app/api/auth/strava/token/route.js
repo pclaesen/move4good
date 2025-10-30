@@ -151,9 +151,10 @@ export async function POST(request) {
     }
 
     // Generate a session for the user using admin.generateLink
+    const userEmail = `strava-${tokenResult.athlete.id}@cryptorunner.local`;
     const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
       type: 'magiclink',
-      email: `strava-${tokenResult.athlete.id}@cryptorunner.local`,
+      email: userEmail,
       options: {
         redirectTo: `${process.env.NEXT_PUBLIC_WEBHOOK_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard`
       }
@@ -168,6 +169,7 @@ export async function POST(request) {
       const tokenHash = url.searchParams.get('token_hash');
       sessionTokens = {
         tokenHash: tokenHash,
+        email: userEmail, // Need email for verifyOtp
         type: 'magiclink'
       };
     }
