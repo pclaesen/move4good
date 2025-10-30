@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
-import webhookLogger from '@/lib/webhook-events-logger';
+import webhookDbLogger from '@/lib/webhook-events-db-logger';
 
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    
+
     // Parse query parameters for filtering
     const filters = {
       type: searchParams.get('type'),
       athleteId: searchParams.get('athlete_id'),
       status: searchParams.get('status'),
       since: searchParams.get('since'),
-      limit: searchParams.get('limit') || '50'
+      limit: parseInt(searchParams.get('limit') || '100')
     };
 
     // Remove null/undefined filters
@@ -19,14 +19,16 @@ export async function GET(request) {
       if (!filters[key]) delete filters[key];
     });
 
-    const events = webhookLogger.getEvents(filters);
-    const stats = webhookLogger.getStats();
+    // Fetch events and stats from database
+    const events = await webhookDbLogger.getEvents(filters);
+    const stats = await webhookDbLogger.getStats();
 
     return NextResponse.json({
       events,
       stats,
       filters: filters,
-      totalEvents: events.length
+      totalEvents: events.length,
+      source: 'database' // Indicate data source
     });
 
   } catch (error) {
@@ -40,11 +42,17 @@ export async function GET(request) {
 
 export async function DELETE(request) {
   try {
-    const clearedCount = webhookLogger.clearEvents();
-    
+    const { searchParams } = new URL(request.url);
+    const daysToKeep = parseInt(searchParams.get('days_to_keep') || '30');
+
+    // Clear old events from database
+    const clearedCount = await webhookDbLogger.clearOldEvents(daysToKeep);
+
     return NextResponse.json({
       success: true,
-      message: `Cleared ${clearedCount} webhook events from memory`
+      message: `Cleared ${clearedCount} webhook events older than ${daysToKeep} days from database`,
+      clearedCount,
+      daysToKeep
     });
 
   } catch (error) {

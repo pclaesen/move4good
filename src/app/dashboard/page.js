@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase-client';
+import { DONATION_CONFIG, ACTIVITY_CONFIG } from '@/lib/app-config';
 import Header from '../components/Header/Header';
 import QRCodePopup from '../components/QRCodePopup/QRCodePopup';
 import { RUN_DISTANCE_OPTIONS, DEFAULT_RUN_OPTION } from '../../lib/run-options';
@@ -89,22 +90,27 @@ export default function Dashboard() {
         setActivities(activitiesData.slice(0, 5)); // Show last 5 activities
         
         // Calculate stats
-        const runActivities = activitiesData.filter(activity => 
-          activity.type === 'Run' || activity.type === 'VirtualRun'
+        const runActivities = activitiesData.filter(activity =>
+          ACTIVITY_CONFIG.ELIGIBLE_TYPES.includes(activity.type)
         );
-        
-        const totalDistance = runActivities.reduce((sum, activity) => 
+
+        const totalDistance = runActivities.reduce((sum, activity) =>
           sum + (activity.distance / 1000), 0 // Convert to kilometers
         );
-        
-        const totalTime = runActivities.reduce((sum, activity) => 
+
+        const totalTime = runActivities.reduce((sum, activity) =>
           sum + activity.moving_time, 0
+        );
+
+        // Calculate total donations using config
+        const totalDonationsAmount = runActivities.reduce((sum, activity) =>
+          sum + DONATION_CONFIG.calculateDonation(activity.distance), 0
         );
 
         setStats({
           totalRuns: runActivities.length,
           totalDistance: Math.round(totalDistance * 10) / 10,
-          totalDonations: Math.round(totalDistance * 2.5), // $2.50 per km example
+          totalDonations: Math.round(totalDonationsAmount),
           totalTime: totalTime
         });
       }
@@ -137,11 +143,10 @@ export default function Dashboard() {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
+    return new Date(dateString).toLocaleDateString(
+      ACTIVITY_CONFIG.DATE_FORMAT,
+      ACTIVITY_CONFIG.DATE_OPTIONS
+    );
   };
 
   const handleShowQR = (charity, runDistance) => {
@@ -299,7 +304,9 @@ export default function Dashboard() {
                       <span className="stat-unit">time</span>
                     </div>
                     <div className="activity-stat">
-                      <span className="stat-value">${((activity.distance / 1000) * 2.5).toFixed(0)}</span>
+                      <span className="stat-value">
+                        {DONATION_CONFIG.formatAmount(DONATION_CONFIG.calculateDonation(activity.distance))}
+                      </span>
                       <span className="stat-unit">raised</span>
                     </div>
                   </div>
