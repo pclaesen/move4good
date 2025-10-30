@@ -1,56 +1,16 @@
 // src/app/api/strava/activities/route.js
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient, createSupabaseAdminClient } from '@/lib/supabase-server';
+import { authenticateRequest } from '@/lib/auth-middleware';
 
 export async function GET(request) {
   try {
-    // Use publishable key client for reading user session
-    const supabase = await createSupabaseServerClient()
-    
-    // Use admin client for database operations
-    const adminSupabase = createSupabaseAdminClient()
-    
-    // Get the authenticated user
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
-    
-    let userData = null;
-    
-    if (authUser && !authError) {
-      // Primary authentication: Supabase session
-      const { data: userDataFromAuth, error: userError } = await adminSupabase
-        .from('users')
-        .select('id, access_token, refresh_token, token_expires_at')
-        .eq('auth_user_id', authUser.id)
-        .single()
+    // Authenticate request using middleware, selecting necessary token fields
+    const { userData, error, adminSupabase } = await authenticateRequest(request, {
+      selectFields: 'id, access_token, refresh_token, token_expires_at'
+    })
 
-      if (!userError && userDataFromAuth) {
-        userData = userDataFromAuth;
-      }
-    }
-    
-    // Fallback authentication: Check for athlete_id in query parameters for localStorage users
-    if (!userData) {
-      const { searchParams } = new URL(request.url)
-      const athleteId = searchParams.get('athlete_id')
-      
-      if (athleteId) {
-        const { data: userDataFromId, error: userError } = await adminSupabase
-          .from('users')
-          .select('id, access_token, refresh_token, token_expires_at')
-          .eq('id', athleteId)
-          .single()
-
-        if (!userError && userDataFromId) {
-          userData = userDataFromId;
-        }
-      }
-    }
-
-    if (!userData) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
     if (!userData.access_token) {

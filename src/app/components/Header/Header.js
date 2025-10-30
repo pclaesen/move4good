@@ -2,6 +2,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { initiateStravaOAuth } from '@/lib/strava-oauth';
 import './Header.css';
 
 export default function Header() {
@@ -73,34 +74,8 @@ export default function Header() {
   };
 
   const handleStravaConnect = () => {
-    // Using the same OAuth configuration from StravaConnectButton
-    const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID || 'your_client_id';
-    
-    // Build redirect URI - prioritize environment variables over dynamic detection
-    const getRedirectUri = () => {
-      // First priority: explicit redirect URI
-      if (process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI) {
-        return process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI;
-      }
-      
-      // Second priority: use WEBHOOK_URL (production)
-      if (process.env.NEXT_PUBLIC_WEBHOOK_URL) {
-        return `${process.env.NEXT_PUBLIC_WEBHOOK_URL}/auth/strava/callback`;
-      }
-      
-      // Last resort: current origin (development only)
-      const origin = window.location.origin;
-      return `${origin}/auth/strava/callback`;
-    };
-    
-    const redirectUri = getRedirectUri();
-    const scope = 'read,activity:read_all';
-    
-    // Build Strava authorization URL
-    const stravaAuthUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&approval_prompt=force&scope=${scope}`;
-    
-    // Redirect to Strava authorization
-    window.location.href = stravaAuthUrl;
+    // Use centralized OAuth utility
+    initiateStravaOAuth();
   };
 
   const closeModal = (e) => {
