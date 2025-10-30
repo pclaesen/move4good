@@ -120,6 +120,7 @@ export async function POST(request) {
 
     let sessionTokens = null;
     const userEmail = `strava-${tokenResult.athlete.id}@cryptorunner.local`;
+    let userPassword = crypto.randomUUID(); // Generate password for new users
 
     // ALWAYS check if auth user exists in Supabase auth system
     // This handles both new users AND existing users who might not have auth user
@@ -131,7 +132,7 @@ export async function POST(request) {
       const { error: authError } = await supabase.auth.admin.createUser({
         id: authUserId,
         email: userEmail,
-        password: crypto.randomUUID(),
+        password: userPassword,
         email_confirm: true,
         user_metadata: {
           strava_athlete_id: tokenResult.athlete.id,
@@ -149,54 +150,56 @@ export async function POST(request) {
       console.log('Auth user created successfully');
     } else {
       console.log('Auth user already exists:', existingAuthUser.user.email);
+      // For existing users, we need to reset password or use OTP
+      // Let's update the password for consistency
+      const { error: updateError } = await supabase.auth.admin.updateUserById(
+        authUserId,
+        { password: userPassword }
+      );
+      if (updateError) {
+        console.error('Failed to update user password:', updateError);
+      }
     }
 
-    // Generate a session for the user using admin.generateLink
-    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-      type: 'magiclink',
+    // Create a session by signing in with the password
+    // Note: We need to use a different Supabase client for this
+    const { createClient } = require('@supabase/supabase-js');
+    const authClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
+
+    const { data: signInData, error: signInError } = await authClient.auth.signInWithPassword({
       email: userEmail,
-      options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_WEBHOOK_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard`
-      }
+      password: userPassword,
     });
 
-    if (linkError) {
-      console.error('Failed to generate session link:', linkError);
-      // Return error to client so they know what went wrong
+    if (signInError) {
+      console.error('Failed to create session:', signInError);
       return NextResponse.json(
-        { error: 'Failed to generate authentication session', details: linkError.message },
+        { error: 'Failed to create session', details: signInError.message },
         { status: 500 }
       );
     }
 
-    if (!linkData || !linkData.properties?.action_link) {
-      console.error('Invalid link data returned from generateLink');
+    if (!signInData.session) {
+      console.error('No session returned from sign in');
       return NextResponse.json(
-        { error: 'Invalid authentication response' },
+        { error: 'Failed to establish session' },
         { status: 500 }
       );
     }
 
-    // Extract token hash from the generated link
-    // The link format is: .../auth/confirm?token_hash=xxx&type=magiclink
-    const url = new URL(linkData.properties.action_link);
-    const tokenHash = url.searchParams.get('token_hash');
-
-    if (!tokenHash) {
-      console.error('No token hash in generated link');
-      return NextResponse.json(
-        { error: 'Failed to generate authentication token' },
-        { status: 500 }
-      );
-    }
-
+    // Extract session tokens
     sessionTokens = {
-      tokenHash: tokenHash,
-      email: userEmail, // Need email for verifyOtp
-      type: 'magiclink'
+      access_token: signInData.session.access_token,
+      refresh_token: signInData.session.refresh_token,
+      expires_at: signInData.session.expires_at,
+      expires_in: signInData.session.expires_in,
+      token_type: signInData.session.token_type,
     };
 
-    console.log('Session tokens generated successfully');
+    console.log('Session created successfully');
 
     // Calculate token expiration timestamp
     const expiresAt = new Date(Date.now() + (tokenResult.expires_in * 1000));

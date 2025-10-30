@@ -73,14 +73,13 @@ function StravaCallbackComponent() {
         setUserInfo(tokenData.athlete);
 
         // Establish Supabase session using the tokens from the API
-        if (tokenData.sessionTokens?.tokenHash && tokenData.sessionTokens?.email) {
+        if (tokenData.sessionTokens?.access_token && tokenData.sessionTokens?.refresh_token) {
           const supabase = createClient();
 
-          // Verify the magic link OTP token to establish a session
-          const { data: sessionData, error: sessionError } = await supabase.auth.verifyOtp({
-            token_hash: tokenData.sessionTokens.tokenHash,
-            type: 'magiclink',
-            email: tokenData.sessionTokens.email,
+          // Set the session using the tokens returned from server
+          const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+            access_token: tokenData.sessionTokens.access_token,
+            refresh_token: tokenData.sessionTokens.refresh_token,
           });
 
           if (sessionError) {
