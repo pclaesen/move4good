@@ -118,13 +118,15 @@ export async function POST(request) {
       .eq('id', tokenResult.athlete.id)
       .single();
 
+    let sessionTokens = null;
+
     // Only create auth user if not exists
     if (!existingUser?.auth_user_id) {
       const email = `strava-${tokenResult.athlete.id}@cryptorunner.local`;
-      
+
       // Check if auth user already exists with this UUID
       const { data: existingAuthUser } = await supabase.auth.admin.getUserById(authUserId);
-      
+
       if (!existingAuthUser.user) {
         // Create auth user only if it doesn't exist
         const { error: authError } = await supabase.auth.admin.createUser({
@@ -146,6 +148,28 @@ export async function POST(request) {
           );
         }
       }
+    }
+
+    // Generate a session for the user using admin.generateLink
+    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+      type: 'magiclink',
+      email: `strava-${tokenResult.athlete.id}@cryptorunner.local`,
+      options: {
+        redirectTo: `${process.env.NEXT_PUBLIC_WEBHOOK_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard`
+      }
+    });
+
+    if (linkError) {
+      console.error('Failed to generate session link:', linkError);
+    } else if (linkData) {
+      // Extract token hash from the generated link
+      // The link format is: .../auth/confirm?token_hash=xxx&type=magiclink
+      const url = new URL(linkData.properties.action_link);
+      const tokenHash = url.searchParams.get('token_hash');
+      sessionTokens = {
+        tokenHash: tokenHash,
+        type: 'magiclink'
+      };
     }
 
     // Calculate token expiration timestamp
@@ -189,15 +213,15 @@ export async function POST(request) {
       );
     }
 
-    // Return success and let frontend handle redirect
-    // The dashboard will authenticate using the athlete_id approach which works reliably
-    const baseUrl = process.env.NEXT_PUBLIC_WEBHOOK_URL || 
-      process.env.NEXT_PUBLIC_SITE_URL || 
+    // Return success with session tokens for client to establish session
+    const baseUrl = process.env.NEXT_PUBLIC_WEBHOOK_URL ||
+      process.env.NEXT_PUBLIC_SITE_URL ||
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
     return NextResponse.json({
       success: true,
       redirectUrl: `${baseUrl}/dashboard`,
+      sessionTokens: sessionTokens, // Client will use this to establish session
       athlete: {
         id: tokenResult.athlete.id,
         username: tokenResult.athlete.username,
